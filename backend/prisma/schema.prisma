@@ -20,7 +20,7 @@ enum EmailStatus {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id String @id @default(cuid())
   googleId  String   @unique
   name      String
   email     String   @unique
@@ -32,7 +32,7 @@ model User {
 }
 
 model Sender {
-  id          String   @id @default(cuid())
+ id String @id @default(cuid())
   email       String
   name        String?
   hourlyLimit Int      @default(200)
@@ -48,7 +48,7 @@ model Sender {
 }
 
 model Email {
-  id          String      @id @default(cuid())
+  id String @id @default(cuid())
   recipient   String
   subject     String
   body        String
