@@ -1,69 +1,178 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { scheduleEmails } from "@/lib/api";
+
+const EMAIL_REGEX =
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ComposePage() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef =
+    useRef<HTMLInputElement>(null);
 
-  const [recipients, setRecipients] = useState<string[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
+  const [recipients, setRecipients] =
+    useState<string[]>([]);
+
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [delaySeconds, setDelaySeconds] = useState("2");
-  const [hourlyLimit, setHourlyLimit] = useState("200");
-  const [startTime, setStartTime] = useState("");
-  const [fileName, setFileName] = useState("");
 
-  const handleFileUpload = (
-    event: React.ChangeEvent<HTMLInputElement>
+  const [delaySeconds, setDelaySeconds] =
+    useState("2");
+
+  const [hourlyLimit, setHourlyLimit] =
+    useState("200");
+
+  const [startTime, setStartTime] =
+    useState("");
+
+  const [isScheduling, setIsScheduling] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
+
+  const [success, setSuccess] =
+    useState("");
+
+  const parseFiles = async (
+    selectedFiles: File[]
   ) => {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
-    setFileName(file.name);
-
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const text = String(reader.result ?? "");
-
-      const emails = text
-        .split(/[\n,;\r]+/)
-        .map((value) => value.trim().toLowerCase())
-        .filter((value) =>
-          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
-        );
-
-      setRecipients(
-        Array.from(new Set(emails))
+    const contents =
+      await Promise.all(
+        selectedFiles.map((file) =>
+          file.text()
+        )
       );
-    };
 
-    reader.readAsText(file);
-  };
+    const emails = contents
+      .join("\n")
+      .replace(/^\uFEFF/, "")
+      .split(/[\n,;\r]+/)
+      .map((value) =>
+        value.trim().toLowerCase()
+      )
+      .filter((value) =>
+        EMAIL_REGEX.test(value)
+      );
 
-  const removeRecipient = (email: string) => {
-    setRecipients((current) =>
-      current.filter((item) => item !== email)
+    return Array.from(
+      new Set(emails)
     );
   };
 
-  const handleSchedule = () => {
-    console.log({
-      recipients,
-      subject,
-      body,
-      delaySeconds,
-      hourlyLimit,
-      startTime,
-    });
+  const handleFileUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const selectedFiles =
+      Array.from(
+        event.target.files ?? []
+      );
+
+    if (!selectedFiles.length) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+
+    try {
+      const emails =
+        await parseFiles(selectedFiles);
+
+      setFiles(selectedFiles);
+      setRecipients(emails);
+    } catch {
+      setError(
+        "Unable to read the selected files."
+      );
+    }
+  };
+
+  const removeRecipient = (
+    email: string
+  ) => {
+    setRecipients((current) =>
+      current.filter(
+        (item) => item !== email
+      )
+    );
+  };
+
+  const handleSchedule = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!recipients.length) {
+      setError(
+        "Please upload a file containing valid email addresses."
+      );
+      return;
+    }
+
+    if (!subject.trim()) {
+      setError("Subject is required.");
+      return;
+    }
+
+    if (!body.trim()) {
+      setError("Email body is required.");
+      return;
+    }
+
+    if (!startTime) {
+      setError("Please select a start time.");
+      return;
+    }
+
+    setIsScheduling(true);
+
+    try {
+      /*
+       * Temporary sender ID.
+       *
+       * This will come from the authenticated user's
+       * sender list once the dashboard API is connected.
+       */
+      const senderId =
+        "cmt3qgq8x0001q82a6ioxze4b";
+
+      const result =
+        await scheduleEmails({
+          senderId,
+          subject,
+          body,
+          startTime: new Date(
+            startTime
+          ).toISOString(),
+          delaySeconds:
+            Number(delaySeconds),
+          hourlyLimit:
+            Number(hourlyLimit),
+          files,
+        });
+
+      setSuccess(
+        `${result.scheduledCount} emails scheduled successfully.`
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to schedule emails."
+      );
+    } finally {
+      setIsScheduling(false);
+    }
   };
 
   return (
     <main className="min-h-screen bg-white text-[#202124]">
       <div className="flex min-h-screen">
+
         {/* Sidebar */}
         <aside className="w-[190px] shrink-0 border-r border-[#eeeeee] px-5 py-6">
+
           <div className="mb-7 text-[27px] font-black tracking-[-2px]">
             ONG
           </div>
@@ -111,8 +220,10 @@ export default function ComposePage() {
 
         {/* Main */}
         <section className="flex min-w-0 flex-1 flex-col">
+
           {/* Header */}
           <header className="flex h-[72px] items-center justify-between border-b border-[#eeeeee] px-7">
+
             <a
               href="/dashboard"
               className="flex cursor-pointer items-center gap-2 text-[12px] text-[#555]"
@@ -120,32 +231,29 @@ export default function ComposePage() {
               ← Back
             </a>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="cursor-pointer rounded-md border border-[#e5e8e6] px-4 py-2 text-[10px] text-[#555] hover:bg-[#f7f9f8]"
-              >
-                Save Draft
-              </button>
+            <button
+              type="button"
+              onClick={handleSchedule}
+              disabled={isScheduling}
+              className="cursor-pointer rounded-md bg-[#00b341] px-5 py-2 text-[10px] font-medium text-white hover:bg-[#00a83d] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isScheduling
+                ? "Scheduling..."
+                : "Schedule"}
+            </button>
 
-              <button
-                type="button"
-                onClick={handleSchedule}
-                className="cursor-pointer rounded-md bg-[#00b341] px-5 py-2 text-[10px] font-medium text-white hover:bg-[#00a83d]"
-              >
-                Schedule
-              </button>
-            </div>
           </header>
 
           {/* Compose */}
           <div className="mx-auto w-full max-w-[850px] px-10 py-8">
+
             <h1 className="mb-7 text-[20px] font-semibold">
               Compose New Email
             </h1>
 
             {/* From */}
             <div className="mb-5">
+
               <label className="mb-2 block text-[10px] font-medium text-[#777]">
                 From
               </label>
@@ -155,11 +263,14 @@ export default function ComposePage() {
                   oliver.brown@domain.io
                 </option>
               </select>
+
             </div>
 
             {/* Recipients */}
             <div className="mb-5">
+
               <div className="mb-2 flex items-center justify-between">
+
                 <label className="text-[10px] font-medium text-[#777]">
                   To
                 </label>
@@ -182,48 +293,67 @@ export default function ComposePage() {
                   hidden
                   onChange={handleFileUpload}
                 />
+
               </div>
 
               <div className="min-h-[44px] rounded-md border border-[#e5e8e6] p-2">
+
                 {recipients.length === 0 ? (
                   <span className="px-1 text-[10px] text-[#aaa]">
                     Enter recipients or upload a CSV
                   </span>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
-                    {recipients.map((email) => (
-                      <span
-                        key={email}
-                        className="flex items-center gap-1 rounded-full bg-[#e8f7ef] px-2.5 py-1 text-[9px] text-[#16814a]"
-                      >
-                        {email}
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            removeRecipient(email)
-                          }
-                          className="cursor-pointer text-[#16814a] hover:text-red-500"
+                    {recipients.map(
+                      (email) => (
+                        <span
+                          key={email}
+                          className="flex items-center gap-1 rounded-full bg-[#e8f7ef] px-2.5 py-1 text-[9px] text-[#16814a]"
                         >
-                          ×
-                        </button>
-                      </span>
-                    ))}
+                          {email}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              removeRecipient(
+                                email
+                              )
+                            }
+                            className="cursor-pointer text-[#16814a] hover:text-red-500"
+                          >
+                            ×
+                          </button>
+
+                        </span>
+                      )
+                    )}
+
                   </div>
                 )}
+
               </div>
 
-              {fileName && (
+              {files.length > 0 && (
                 <p className="mt-2 text-[9px] text-[#888]">
-                  {fileName} · {recipients.length} valid
+                  {files.length} file
+                  {files.length === 1
+                    ? ""
+                    : "s"} ·{" "}
+                  {recipients.length} valid
                   email
-                  {recipients.length === 1 ? "" : "s"} detected
+                  {recipients.length === 1
+                    ? ""
+                    : "s"}{" "}
+                  detected
                 </p>
               )}
+
             </div>
 
             {/* Subject */}
             <div className="mb-5">
+
               <label className="mb-2 block text-[10px] font-medium text-[#777]">
                 Subject
               </label>
@@ -231,16 +361,21 @@ export default function ComposePage() {
               <input
                 value={subject}
                 onChange={(event) =>
-                  setSubject(event.target.value)
+                  setSubject(
+                    event.target.value
+                  )
                 }
                 placeholder="Enter email subject"
                 className="h-[38px] w-full rounded-md border border-[#e5e8e6] px-3 text-[11px] outline-none placeholder:text-[#aaa] focus:border-[#00b341]"
               />
+
             </div>
 
-            {/* Scheduling controls */}
+            {/* Scheduling */}
             <div className="mb-5 grid grid-cols-3 gap-4">
+
               <div>
+
                 <label className="mb-2 block text-[10px] font-medium text-[#777]">
                   Start time
                 </label>
@@ -249,24 +384,31 @@ export default function ComposePage() {
                   type="datetime-local"
                   value={startTime}
                   onChange={(event) =>
-                    setStartTime(event.target.value)
+                    setStartTime(
+                      event.target.value
+                    )
                   }
                   className="h-[38px] w-full rounded-md border border-[#e5e8e6] px-3 text-[10px] outline-none focus:border-[#00b341]"
                 />
+
               </div>
 
               <div>
+
                 <label className="mb-2 block text-[10px] font-medium text-[#777]">
                   Delay between emails
                 </label>
 
                 <div className="relative">
+
                   <input
                     type="number"
                     min="0"
                     value={delaySeconds}
                     onChange={(event) =>
-                      setDelaySeconds(event.target.value)
+                      setDelaySeconds(
+                        event.target.value
+                      )
                     }
                     className="h-[38px] w-full rounded-md border border-[#e5e8e6] px-3 pr-14 text-[11px] outline-none focus:border-[#00b341]"
                   />
@@ -274,21 +416,27 @@ export default function ComposePage() {
                   <span className="absolute right-3 top-[12px] text-[9px] text-[#999]">
                     sec
                   </span>
+
                 </div>
+
               </div>
 
               <div>
+
                 <label className="mb-2 block text-[10px] font-medium text-[#777]">
                   Hourly limit
                 </label>
 
                 <div className="relative">
+
                   <input
                     type="number"
                     min="1"
                     value={hourlyLimit}
                     onChange={(event) =>
-                      setHourlyLimit(event.target.value)
+                      setHourlyLimit(
+                        event.target.value
+                      )
                     }
                     className="h-[38px] w-full rounded-md border border-[#e5e8e6] px-3 pr-14 text-[11px] outline-none focus:border-[#00b341]"
                   />
@@ -296,12 +444,16 @@ export default function ComposePage() {
                   <span className="absolute right-3 top-[12px] text-[9px] text-[#999]">
                     / hour
                   </span>
+
                 </div>
+
               </div>
+
             </div>
 
             {/* Body */}
             <div>
+
               <label className="mb-2 block text-[10px] font-medium text-[#777]">
                 Body
               </label>
@@ -309,25 +461,47 @@ export default function ComposePage() {
               <textarea
                 value={body}
                 onChange={(event) =>
-                  setBody(event.target.value)
+                  setBody(
+                    event.target.value
+                  )
                 }
                 placeholder="Type your email..."
                 className="h-[300px] w-full resize-none rounded-md border border-[#e5e8e6] p-4 text-[11px] outline-none placeholder:text-[#aaa] focus:border-[#00b341]"
               />
+
             </div>
 
-            {/* Bottom info */}
+            {/* Errors */}
+            {error && (
+              <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[10px] text-red-600">
+                {error}
+              </div>
+            )}
+
+            {/* Success */}
+            {success && (
+              <div className="mt-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-[10px] text-green-700">
+                {success}
+              </div>
+            )}
+
+            {/* Footer */}
             <div className="mt-4 flex items-center justify-between">
+
               <p className="text-[9px] text-[#999]">
                 {recipients.length} recipient
-                {recipients.length === 1 ? "" : "s"}
+                {recipients.length === 1
+                  ? ""
+                  : "s"}
               </p>
 
               <p className="text-[9px] text-[#999]">
                 Delay: {delaySeconds}s · Limit:{" "}
                 {hourlyLimit}/hour
               </p>
+
             </div>
+
           </div>
         </section>
       </div>
