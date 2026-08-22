@@ -14,4 +14,12 @@ export const env = {
   SMTP_PORT: Number(process.env.SMTP_PORT ?? 587),
   SMTP_USER: process.env.SMTP_USER!,
   SMTP_PASSWORD: process.env.SMTP_PASSWORD!,
+
+  MIN_EMAIL_DELAY_SECONDS: Number(
+  process.env.MIN_EMAIL_DELAY_SECONDS ?? 2
+),
+
+MAX_EMAILS_PER_HOUR: Number(
+  process.env.MAX_EMAILS_PER_HOUR ?? 200
+),
 };
