@@ -1,28 +1,24 @@
 import { redis } from "../config/redis";
 import { env } from "../config/env";
 
+const HOUR_MS = 60 * 60 * 1000;
+
 export const getSenderRateLimit = async (
   senderId: string
 ) => {
   const now = Date.now();
 
-  const hourWindow = Math.floor(
-    now / (60 * 60 * 1000)
-  );
+  const hourWindow = Math.floor(now / HOUR_MS);
 
-  const counterKey =
-    `email-rate:${senderId}:${hourWindow}`;
+  const key = `email-rate:${senderId}:${hourWindow}`;
 
   const currentCount = Number(
-    (await redis.get(counterKey)) ?? 0
+    (await redis.get(key)) ?? "0"
   );
 
-  const maxEmails =
-    env.MAX_EMAILS_PER_HOUR;
-
-  if (currentCount >= maxEmails) {
+  if (currentCount >= env.MAX_EMAILS_PER_HOUR) {
     const nextHour =
-      (hourWindow + 1) * 60 * 60 * 1000;
+      (hourWindow + 1) * HOUR_MS;
 
     return {
       allowed: false,
@@ -41,16 +37,13 @@ export const recordEmailSend = async (
 ) => {
   const now = Date.now();
 
-  const hourWindow = Math.floor(
-    now / (60 * 60 * 1000)
-  );
+  const hourWindow = Math.floor(now / HOUR_MS);
 
-  const counterKey =
-    `email-rate:${senderId}:${hourWindow}`;
+  const key = `email-rate:${senderId}:${hourWindow}`;
 
-  const count = await redis.incr(counterKey);
+  const count = await redis.incr(key);
 
   if (count === 1) {
-    await redis.expire(counterKey, 3700);
+    await redis.expire(key, 3700);
   }
 };

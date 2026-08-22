@@ -12,19 +12,18 @@ export const enforceMinimumSendDelay = async (
     return;
   }
 
-  const elapsed =
-    Date.now() - Number(lastSend);
+  const elapsed = Date.now() - Number(lastSend);
 
   const requiredDelay =
     env.MIN_EMAIL_DELAY_SECONDS * 1000;
 
   if (elapsed < requiredDelay) {
-    await new Promise((resolve) =>
+    await new Promise((resolve) => {
       setTimeout(
         resolve,
         requiredDelay - elapsed
-      )
-    );
+      );
+    });
   }
 };
 
