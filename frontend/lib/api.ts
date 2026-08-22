@@ -61,3 +61,52 @@ export const scheduleEmails = async (
 
   return data;
 };
+
+
+// Dashboard
+
+export interface DashboardEmail {
+  id: string;
+  recipient: string;
+  subject: string;
+  body: string;
+  scheduledAt: string;
+  sentAt: string | null;
+  failedAt: string | null;
+  lastError: string | null;
+  status:
+    | "SCHEDULED"
+    | "PROCESSING"
+    | "SENT"
+    | "FAILED";
+}
+
+export const getDashboardEmails = async (
+  senderId: string,
+  status?: string
+): Promise<DashboardEmail[]> => {
+  const params = new URLSearchParams({
+    senderId,
+  });
+
+  if (status) {
+    params.append("status", status);
+  }
+
+  const response = await fetch(
+    `${API_URL}/api/dashboard/emails?${params.toString()}`,
+    {
+      cache: "no-store",
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ?? "Failed to fetch dashboard emails"
+    );
+  }
+
+  return data.emails;
+};
