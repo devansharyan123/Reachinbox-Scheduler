@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "@/components/theme-toggle";
 
 import {
   getDashboardEmails,
@@ -171,7 +172,7 @@ export default function Dashboard() {
   ) => {
     const date =
       email.status === "SENT" &&
-      email.sentAt
+        email.sentAt
         ? new Date(email.sentAt)
         : new Date(email.scheduledAt);
 
@@ -202,11 +203,11 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-[#202124]">
+    <main className="min-h-screen bg-white text-[#202124] dark:bg-[#151817] dark:text-[#f1f3f2]">
       <div className="flex min-h-screen">
 
         {/* Sidebar */}
-        <aside className="w-[190px] shrink-0 border-r border-[#eeeeee] px-5 py-6">
+        <aside className="w-[190px] shrink-0 border-r border-[#eeeeee] px-5 py-6 dark:border-[#292e2b]">
 
           {/* Logo */}
           <div className="mb-7 text-[27px] font-black tracking-[-2px]">
@@ -263,11 +264,10 @@ export default function Dashboard() {
             onClick={() =>
               setActiveTab("scheduled")
             }
-            className={`mb-1 flex h-[31px] w-full cursor-pointer items-center justify-between rounded-lg px-2 text-[11px] ${
-              activeTab === "scheduled"
-                ? "bg-[#e4f6ed] text-[#303030]"
-                : "text-[#555]"
-            }`}
+            className={`mb-1 flex h-[31px] w-full cursor-pointer items-center justify-between rounded-lg px-2 text-[11px] ${activeTab === "scheduled"
+              ? "bg-[#e4f6ed] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
+              : "text-[#555] dark:text-[#b8c0bb]"
+              }`}
           >
             <span className="flex items-center gap-2">
               <span>◷</span>
@@ -284,11 +284,10 @@ export default function Dashboard() {
             onClick={() =>
               setActiveTab("sent")
             }
-            className={`flex h-[31px] w-full cursor-pointer items-center justify-between rounded-lg px-2 text-[11px] ${
-              activeTab === "sent"
-                ? "bg-[#e4f6ed] text-[#303030]"
-                : "text-[#555]"
-            }`}
+            className={`flex h-[31px] w-full cursor-pointer items-center justify-between rounded-lg px-2 text-[11px] ${activeTab === "sent"
+                ? "bg-[#e4f6ed] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
+                : "text-[#555] dark:text-[#b8c0bb]"
+              }`}
           >
             <span className="flex items-center gap-2">
               <span>➤</span>
@@ -305,9 +304,9 @@ export default function Dashboard() {
         <section className="flex min-w-0 flex-1 flex-col">
 
           {/* Top bar */}
-          <header className="flex h-[72px] items-center gap-4 border-b border-[#eeeeee] px-7">
+          <header className="flex h-[72px] items-center gap-4 border-b border-[#eeeeee] px-7 dark:border-[#292e2b]">
 
-            <div className="flex h-[32px] max-w-[455px] flex-1 items-center rounded-full bg-[#f4f7f5] px-4">
+            <div className="flex h-[32px] max-w-[455px] flex-1 items-center rounded-full bg-[#f4f7f5] px-4 dark:bg-[#202522]">
 
               <span className="mr-2 text-[13px] text-[#9da5a1]">
                 ⌕
@@ -328,6 +327,8 @@ export default function Dashboard() {
             >
               ↻
             </button>
+
+            <ThemeToggle />
 
             <div className="ml-auto">
 
@@ -353,7 +354,7 @@ export default function Dashboard() {
           <div className="flex-1">
 
             {loading ? (
-              <div className="flex h-[400px] items-center justify-center text-sm text-[#999]">
+              <div className="flex h-[400px] items-center justify-center text-sm text-[#999] dark:text-[#777f7a]">
                 Loading emails...
               </div>
             ) : error ? (
@@ -378,7 +379,7 @@ export default function Dashboard() {
                 (email) => (
                   <button
                     key={email.id}
-                    className="group flex w-full cursor-pointer items-center gap-5 border-b border-[#eeeeee] px-7 py-4 text-left transition hover:bg-[#fafcfb]"
+                    className="group flex w-full cursor-pointer items-center gap-5 border-b border-[#eeeeee] px-7 py-4 text-left transition hover:bg-[#fafcfb] dark:border-[#292e2b] dark:hover:bg-[#1c211f]"
                   >
 
                     {/* Recipient */}
@@ -390,23 +391,22 @@ export default function Dashboard() {
 
                       {/* Status / time */}
                       <span
-                        className={`shrink-0 rounded-full px-2 py-1 text-[9px] ${
-                          email.status ===
+                        className={`shrink-0 rounded-full px-2 py-1 text-[9px] ${email.status ===
                           "SENT"
-                            ? "bg-[#f0f2f2] text-[#747b78]"
-                            : email.status ===
-                              "PROCESSING"
+                          ? "bg-[#f0f2f2] text-[#747b78]"
+                          : email.status ===
+                            "PROCESSING"
                             ? "bg-[#e8f1ff] text-[#4d78b8]"
                             : "bg-[#fff0dc] text-[#e88721]"
-                        }`}
+                          }`}
                       >
                         {email.status ===
-                        "SENT"
+                          "SENT"
                           ? "Sent"
                           : email.status ===
                             "PROCESSING"
-                          ? "Processing"
-                          : formatTime(
+                            ? "Processing"
+                            : formatTime(
                               email
                             )}
                       </span>
