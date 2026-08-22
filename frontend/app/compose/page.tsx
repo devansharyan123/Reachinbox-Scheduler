@@ -38,6 +38,9 @@ export default function ComposePage() {
   const [recipients, setRecipients] =
     useState<string[]>([]);
 
+  const [recipientInput, setRecipientInput] =
+    useState("");
+
   const [subject, setSubject] =
     useState("");
 
@@ -159,6 +162,31 @@ export default function ComposePage() {
     );
   };
 
+  const addRecipient = (value: string) => {
+    const emails = value
+      .split(/[\s,;]+/)
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean);
+
+    const invalidEmail = emails.find(
+      (email) => !EMAIL_REGEX.test(email)
+    );
+
+    if (invalidEmail) {
+      setError(`Invalid email: ${invalidEmail}`);
+      return;
+    }
+
+    setRecipients((current) =>
+      Array.from(
+        new Set([...current, ...emails])
+      )
+    );
+
+    setRecipientInput("");
+    setError("");
+  };
+
   const handleFileUpload = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -177,9 +205,17 @@ export default function ComposePage() {
     try {
       const emails =
         await parseFiles(selectedFiles);
+      setFiles((current) => [
+        ...current,
+        ...selectedFiles,
+      ]);
 
-      setFiles(selectedFiles);
-      setRecipients(emails);
+      setRecipients((current) =>
+        Array.from(
+          new Set([...current, ...emails])
+        )
+      );
+
     } catch {
       setError(
         "Unable to read the selected files."
@@ -209,9 +245,7 @@ export default function ComposePage() {
     }
 
     if (!recipients.length) {
-      setError(
-        "Please upload a file containing valid email addresses."
-      );
+      setError("Please add at least one recipient email.");
       return;
     }
 
@@ -239,20 +273,24 @@ export default function ComposePage() {
     setIsScheduling(true);
 
     try {
-      const result =
-        await scheduleEmails({
-          senderId: sender.id,
-          subject,
-          body,
-          startTime: new Date(
-            startTime
-          ).toISOString(),
-          delaySeconds:
-            Number(delaySeconds),
-          hourlyLimit:
-            Number(hourlyLimit),
-          files,
-        });
+      const result = await scheduleEmails({
+        senderId: sender.id,
+        subject,
+        body,
+        startTime: new Date(startTime).toISOString(),
+        delaySeconds: Number(delaySeconds),
+        hourlyLimit: Number(hourlyLimit),
+
+        files: [
+          new File(
+            [recipients.join("\n")],
+            "recipients.txt",
+            {
+              type: "text/plain",
+            }
+          ),
+        ],
+      });
 
       setSuccess(
         `${result.scheduledCount} emails scheduled successfully.`
@@ -368,8 +406,8 @@ export default function ComposePage() {
               {loadingSender
                 ? "Loading..."
                 : isScheduling
-                ? "Scheduling..."
-                : "Schedule"}
+                  ? "Scheduling..."
+                  : "Schedule"}
             </button>
 
           </header>
@@ -437,40 +475,59 @@ export default function ComposePage() {
               </div>
 
               <div className="min-h-[44px] rounded-md border border-[#e5e8e6] p-2">
+                <div className="flex flex-wrap items-center gap-1.5">
 
-                {recipients.length === 0 ? (
-                  <span className="px-1 text-[10px] text-[#aaa]">
-                    Enter recipients or upload a CSV
-                  </span>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
+                  {recipients.map((email) => (
+                    <span
+                      key={email}
+                      className="flex items-center gap-1 rounded-full bg-[#e8f7ef] px-2.5 py-1 text-[9px] text-[#16814a]"
+                    >
+                      {email}
 
-                    {recipients.map(
-                      (email) => (
-                        <span
-                          key={email}
-                          className="flex items-center gap-1 rounded-full bg-[#e8f7ef] px-2.5 py-1 text-[9px] text-[#16814a]"
-                        >
-                          {email}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          removeRecipient(email)
+                        }
+                        className="cursor-pointer text-[#16814a] hover:text-red-500"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              removeRecipient(
-                                email
-                              )
-                            }
-                            className="cursor-pointer text-[#16814a] hover:text-red-500"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      )
-                    )}
+                  <input
+                    value={recipientInput}
+                    onChange={(event) =>
+                      setRecipientInput(event.target.value)
+                    }
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter" ||
+                        event.key === "," ||
+                        event.key === ";"
+                      ) {
+                        event.preventDefault();
 
-                  </div>
-                )}
+                        if (recipientInput.trim()) {
+                          addRecipient(recipientInput);
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      if (recipientInput.trim()) {
+                        addRecipient(recipientInput);
+                      }
+                    }}
+                    placeholder={
+                      recipients.length === 0
+                        ? "Enter recipient email"
+                        : "Add another email..."
+                    }
+                    className="min-w-[180px] flex-1 bg-transparent px-1 py-1 text-[10px] outline-none placeholder:text-[#aaa]"
+                  />
 
+                </div>
               </div>
 
               {files.length > 0 && (
