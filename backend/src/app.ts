@@ -42,17 +42,22 @@ app.post("/dev/test-queue", async (_req, res) => {
 
   const queue = getEmailQueue(sender.id);
 
-  const job = await queue.add(
-    "send-email",
-    {
-      emailId: email.id,
-      senderId: sender.id,
-    },
-    {
+ const job = await queue.add(
+  "send-email",
+  {
+    emailId: email.id,
+    senderId: sender.id,
+  },
+  {
+    delay: 5000,
+    jobId: email.id,
+    attempts: 3,
+    backoff: {
+      type: "exponential",
       delay: 5000,
-      jobId: email.id,
-    }
-  );
+    },
+  }
+);
 
   res.json({
     message: "Test job created",
@@ -61,6 +66,50 @@ app.post("/dev/test-queue", async (_req, res) => {
     emailId: email.id,
     jobId: job.id,
     queue: queue.name,
+  });
+});
+
+app.post("/dev/test-stale-processing", async (_req, res) => {
+  const user = await prisma.user.create({
+    data: {
+      googleId: `stale-test-${Date.now()}`,
+      name: "Stale Test User",
+      email: `stale-test-${Date.now()}@example.com`,
+    },
+  });
+
+  const sender = await prisma.sender.create({
+    data: {
+      email: `stale-sender-${Date.now()}@example.com`,
+      name: "Stale Test Sender",
+      hourlyLimit: 200,
+      userId: user.id,
+    },
+  });
+
+  const email = await prisma.email.create({
+    data: {
+      recipient: "stale-recipient@example.com",
+      subject: "Stale Processing Test",
+      body: "Testing crash recovery.",
+      scheduledAt: new Date(),
+      status: "PROCESSING",
+      senderId: sender.id,
+    },
+  });
+
+  await prisma.email.update({
+    where: {
+      id: email.id,
+    },
+    data: {
+      updatedAt: new Date(Date.now() - 10 * 60 * 1000),
+    },
+  });
+
+  res.json({
+    message: "Created stale PROCESSING email",
+    emailId: email.id,
   });
 });
 

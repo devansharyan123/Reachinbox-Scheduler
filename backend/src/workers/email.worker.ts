@@ -4,6 +4,9 @@ import { prisma } from "../config/database";
 import { env } from "../config/env";
 import { SendEmailJob } from "../queue/types";
 import { sendEmail } from "../services/mail.service";
+import {
+  reconcileStaleProcessingEmails,
+} from "../services/email.reconciliation.service";
 
 const workers = new Map<string, Worker<SendEmailJob>>();
 
@@ -179,6 +182,8 @@ const discoverSenders = async () => {
 const start = async () => {
   console.log("Email worker process started.");
 
+  await reconcileStaleProcessingEmails();
+
   await discoverSenders();
 
   setInterval(() => {
@@ -189,6 +194,15 @@ const start = async () => {
       );
     });
   }, 5000);
+
+  setInterval(() => {
+    reconcileStaleProcessingEmails().catch((error) => {
+      console.error(
+        "Failed to reconcile stale emails:",
+        error
+      );
+    });
+  }, 60_000);
 };
 
 const shutdown = async (signal: string) => {
