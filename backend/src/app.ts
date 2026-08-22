@@ -2,11 +2,13 @@ import express from "express";
 import cors from "cors";
 import { getEmailQueue } from "./queue/email.queue";
 import { prisma } from "./config/database";
+import emailRoutes from "./routes/email.routes";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/emails", emailRoutes);
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
