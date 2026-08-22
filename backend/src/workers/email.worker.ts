@@ -3,6 +3,7 @@ import { redis } from "../config/redis";
 import { prisma } from "../config/database";
 import { env } from "../config/env";
 import { SendEmailJob } from "../queue/types";
+import { sendEmail } from "../services/mail.service";
 
 const workers = new Map<string, Worker<SendEmailJob>>();
 
@@ -16,12 +17,11 @@ const createWorkerForSender = (senderId: string) => {
   const worker = new Worker<SendEmailJob>(
     queueName,
     async (job) => {
-      console.log(
-        `[${queueName}] Processing job ${job.id}`
-      );
+      console.log(`[${queueName}] Processing job ${job.id}`);
 
       const { emailId } = job.data;
 
+      // Atomic idempotency claim.
       const claimedEmails = await prisma.$queryRaw<
         Array<{
           id: string;
@@ -46,6 +46,7 @@ const createWorkerForSender = (senderId: string) => {
           status;
       `;
 
+      // Another worker already claimed/completed this email.
       if (claimedEmails.length === 0) {
         console.log(
           `[${queueName}] Email ${emailId} was already claimed or completed. Skipping.`
@@ -56,14 +57,79 @@ const createWorkerForSender = (senderId: string) => {
 
       const email = claimedEmails[0];
 
-      console.log(
-        `[${queueName}] Email ${email.id} claimed successfully.`
-      );
+      try {
+        console.log(
+          `[${queueName}] Sending email ${email.id} to ${email.recipient}`
+        );
 
-      console.log(`Recipient: ${email.recipient}`);
-      console.log(`Subject: ${email.subject}`);
+        // Get the sender's actual email address.
+        const sender = await prisma.sender.findUnique({
+          where: {
+            id: senderId,
+          },
+          select: {
+            email: true,
+          },
+        });
 
-      // Ethereal sending will be added next.
+        if (!sender) {
+          throw new Error(`Sender ${senderId} not found`);
+        }
+
+        // Send through Ethereal SMTP.
+        const result = await sendEmail({
+          from: sender.email,
+          to: email.recipient,
+          subject: email.subject,
+          text: email.body,
+        });
+
+        // Mark the email as successfully sent.
+        await prisma.email.update({
+          where: {
+            id: email.id,
+          },
+          data: {
+            status: "SENT",
+            sentAt: new Date(),
+            failedAt: null,
+            lastError: null,
+          },
+        });
+
+        console.log(
+          `[${queueName}] Email ${email.id} sent successfully.`
+        );
+
+        if (result.previewUrl) {
+          console.log(
+            `[${queueName}] Preview: ${result.previewUrl}`
+          );
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Unknown email sending error";
+
+        await prisma.email.update({
+          where: {
+            id: email.id,
+          },
+          data: {
+            status: "FAILED",
+            failedAt: new Date(),
+            lastError: message,
+          },
+        });
+
+        console.error(
+          `[${queueName}] Email ${email.id} failed: ${message}`
+        );
+
+        // Tell BullMQ that the job failed.
+        throw error;
+      }
     },
     {
       connection: redis,
@@ -80,7 +146,7 @@ const createWorkerForSender = (senderId: string) => {
   worker.on("failed", (job, error) => {
     console.error(
       `[${queueName}] Job ${job?.id} failed:`,
-      error
+      error.message
     );
   });
 
@@ -126,7 +192,9 @@ const start = async () => {
 };
 
 const shutdown = async (signal: string) => {
-  console.log(`${signal} received. Shutting down workers...`);
+  console.log(
+    `${signal} received. Shutting down workers...`
+  );
 
   for (const worker of workers.values()) {
     await worker.close();
@@ -144,7 +212,10 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 start().catch(async (error) => {
-  console.error("Worker failed to start:", error);
+  console.error(
+    "Worker failed to start:",
+    error
+  );
 
   await prisma.$disconnect();
   await redis.quit();
