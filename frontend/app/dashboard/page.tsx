@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 type EmailStatus = "scheduled" | "sent";
 
-const SENDER_ID = "cmt3r3tct0001cm2ahnm4qbms";
+const SENDER_ID = "cmt3qgq8x0001q82a6ioxze4b";
 
 export default function Dashboard() {
   const router = useRouter();
