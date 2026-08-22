@@ -22,4 +22,7 @@ export const env = {
   MAX_EMAILS_PER_HOUR: Number(
     process.env.MAX_EMAILS_PER_HOUR ?? 200
   ),
+
+  INTERNAL_API_SECRET:
+    process.env.INTERNAL_API_SECRET ?? "",
 };

@@ -1,21 +1,48 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { scheduleEmails } from "@/lib/api";
+import { useRef, useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import {
+  scheduleEmails,
+  getCurrentUser,
+} from "@/lib/api";
 
 const EMAIL_REGEX =
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+interface Sender {
+  id: string;
+  email: string;
+  name: string | null;
+  hourlyLimit: number;
+}
+
 export default function ComposePage() {
+  const router = useRouter();
+
+  const {
+    data: session,
+    status: sessionStatus,
+  } = useSession();
+
   const fileInputRef =
     useRef<HTMLInputElement>(null);
 
-  const [files, setFiles] = useState<File[]>([]);
+  const [sender, setSender] =
+    useState<Sender | null>(null);
+
+  const [files, setFiles] =
+    useState<File[]>([]);
+
   const [recipients, setRecipients] =
     useState<string[]>([]);
 
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [subject, setSubject] =
+    useState("");
+
+  const [body, setBody] =
+    useState("");
 
   const [delaySeconds, setDelaySeconds] =
     useState("2");
@@ -29,11 +56,82 @@ export default function ComposePage() {
   const [isScheduling, setIsScheduling] =
     useState(false);
 
+  const [loadingSender, setLoadingSender] =
+    useState(true);
+
   const [error, setError] =
     useState("");
 
   const [success, setSuccess] =
     useState("");
+
+  /*
+   * Get the sender belonging to the
+   * currently authenticated Google account.
+   */
+  useEffect(() => {
+    if (sessionStatus === "loading") {
+      return;
+    }
+
+    if (sessionStatus === "unauthenticated") {
+      router.push("/");
+      return;
+    }
+
+    const email = session?.user?.email;
+
+    if (!email) {
+      setError(
+        "Unable to determine logged-in user."
+      );
+      setLoadingSender(false);
+      return;
+    }
+
+    const loadSender = async () => {
+      try {
+        setLoadingSender(true);
+        setError("");
+
+        const data =
+          await getCurrentUser(email);
+
+        if (!data.senders.length) {
+          throw new Error(
+            "No sender is configured for this account."
+          );
+        }
+
+        const currentSender =
+          data.senders[0];
+
+        setSender(currentSender);
+
+        /*
+         * Use the sender's configured hourly
+         * limit as the default.
+         */
+        setHourlyLimit(
+          String(currentSender.hourlyLimit)
+        );
+      } catch (error) {
+        setError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load sender."
+        );
+      } finally {
+        setLoadingSender(false);
+      }
+    };
+
+    loadSender();
+  }, [
+    session,
+    sessionStatus,
+    router,
+  ]);
 
   const parseFiles = async (
     selectedFiles: File[]
@@ -103,6 +201,13 @@ export default function ComposePage() {
     setError("");
     setSuccess("");
 
+    if (!sender) {
+      setError(
+        "Sender account is not available yet."
+      );
+      return;
+    }
+
     if (!recipients.length) {
       setError(
         "Please upload a file containing valid email addresses."
@@ -111,35 +216,32 @@ export default function ComposePage() {
     }
 
     if (!subject.trim()) {
-      setError("Subject is required.");
+      setError(
+        "Subject is required."
+      );
       return;
     }
 
     if (!body.trim()) {
-      setError("Email body is required.");
+      setError(
+        "Email body is required."
+      );
       return;
     }
 
     if (!startTime) {
-      setError("Please select a start time.");
+      setError(
+        "Please select a start time."
+      );
       return;
     }
 
     setIsScheduling(true);
 
     try {
-      /*
-       * Temporary sender ID.
-       *
-       * This will come from the authenticated user's
-       * sender list once the dashboard API is connected.
-       */
-      const senderId =
-        "cmt3qgq8x0001q82a6ioxze4b";
-
       const result =
         await scheduleEmails({
-          senderId,
+          senderId: sender.id,
           subject,
           body,
           startTime: new Date(
@@ -166,6 +268,14 @@ export default function ComposePage() {
     }
   };
 
+  if (sessionStatus === "loading") {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-white text-sm text-[#999]">
+        Loading...
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-white text-[#202124]">
       <div className="flex min-h-screen">
@@ -177,18 +287,31 @@ export default function ComposePage() {
             ONG
           </div>
 
+          {/* Logged-in user */}
           <div className="mb-3 flex items-center gap-2 px-1 py-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[11px] font-semibold">
-              OB
-            </div>
+
+            {session?.user?.image ? (
+              <img
+                src={session.user.image}
+                alt=""
+                className="h-8 w-8 rounded-full"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[11px] font-semibold">
+                {session?.user?.name
+                  ?.charAt(0)
+                  .toUpperCase() ?? "U"}
+              </div>
+            )}
 
             <div className="min-w-0">
               <p className="truncate text-[12px] font-medium">
-                Oliver Brown
+                {session?.user?.name ??
+                  "User"}
               </p>
 
               <p className="truncate text-[9px] text-[#9a9a9a]">
-                oliver.brown@domain.io
+                {session?.user?.email}
               </p>
             </div>
           </div>
@@ -216,6 +339,7 @@ export default function ComposePage() {
           >
             ➤ Sent
           </a>
+
         </aside>
 
         {/* Main */}
@@ -234,10 +358,16 @@ export default function ComposePage() {
             <button
               type="button"
               onClick={handleSchedule}
-              disabled={isScheduling}
+              disabled={
+                isScheduling ||
+                loadingSender ||
+                !sender
+              }
               className="cursor-pointer rounded-md bg-[#00b341] px-5 py-2 text-[10px] font-medium text-white hover:bg-[#00a83d] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isScheduling
+              {loadingSender
+                ? "Loading..."
+                : isScheduling
                 ? "Scheduling..."
                 : "Schedule"}
             </button>
@@ -258,10 +388,20 @@ export default function ComposePage() {
                 From
               </label>
 
-              <select className="h-[38px] w-full cursor-pointer rounded-md border border-[#e5e8e6] bg-white px-3 text-[11px] outline-none focus:border-[#00b341]">
-                <option>
-                  oliver.brown@domain.io
-                </option>
+              <select
+                value={sender?.id ?? ""}
+                disabled
+                className="h-[38px] w-full cursor-not-allowed rounded-md border border-[#e5e8e6] bg-[#f8faf9] px-3 text-[11px] outline-none"
+              >
+                {sender ? (
+                  <option value={sender.id}>
+                    {sender.email}
+                  </option>
+                ) : (
+                  <option value="">
+                    Loading sender...
+                  </option>
+                )}
               </select>
 
             </div>
@@ -324,7 +464,6 @@ export default function ComposePage() {
                           >
                             ×
                           </button>
-
                         </span>
                       )
                     )}
@@ -339,7 +478,8 @@ export default function ComposePage() {
                   {files.length} file
                   {files.length === 1
                     ? ""
-                    : "s"} ·{" "}
+                    : "s"}{" "}
+                  ·{" "}
                   {recipients.length} valid
                   email
                   {recipients.length === 1

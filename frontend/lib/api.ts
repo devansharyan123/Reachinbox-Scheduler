@@ -110,3 +110,40 @@ export const getDashboardEmails = async (
 
   return data.emails;
 };
+
+
+export interface CurrentUser {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    avatar: string | null;
+  };
+  senders: {
+    id: string;
+    email: string;
+    name: string | null;
+    hourlyLimit: number;
+  }[];
+}
+
+export const getCurrentUser = async (
+  email: string
+): Promise<CurrentUser> => {
+  const response = await fetch(
+    `${API_URL}/api/users/me?email=${encodeURIComponent(email)}`,
+    {
+      cache: "no-store",
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ?? "Failed to fetch current user"
+    );
+  }
+
+  return data;
+};
