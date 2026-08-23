@@ -147,3 +147,64 @@ export const getCurrentUser = async (
 
   return data;
 };
+
+export interface Sender {
+  id: string;
+  email: string;
+  name: string | null;
+  hourlyLimit: number;
+}
+
+export interface AddSenderInput {
+  userId: string;
+  email: string;
+  name?: string;
+  hourlyLimit?: number;
+}
+
+export const addSender = async (
+  input: AddSenderInput
+): Promise<Sender> => {
+  const response = await fetch(
+    `${API_URL}/api/users/senders`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(input),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ?? "Failed to add sender"
+    );
+  }
+
+  return data.sender;
+};
+
+export const deleteSender = async (
+  senderId: string,
+  userId: string
+): Promise<void> => {
+  const response = await fetch(
+    `${API_URL}/api/users/senders/${encodeURIComponent(
+      senderId
+    )}?userId=${encodeURIComponent(userId)}`,
+    {
+      method: "DELETE",
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.error ?? "Failed to remove sender"
+    );
+  }
+};

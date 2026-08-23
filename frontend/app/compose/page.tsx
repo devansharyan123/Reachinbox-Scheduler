@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import ThemeToggle from "@/components/theme-toggle";
 import {
   scheduleEmails,
   getCurrentUser,
@@ -29,8 +30,11 @@ export default function ComposePage() {
   const fileInputRef =
     useRef<HTMLInputElement>(null);
 
-  const [sender, setSender] =
-    useState<Sender | null>(null);
+  const [senders, setSenders] =
+    useState<Sender[]>([]);
+
+  const [selectedSenderId, setSelectedSenderId] =
+    useState("");
 
   const [files, setFiles] =
     useState<File[]>([]);
@@ -92,7 +96,7 @@ export default function ComposePage() {
       return;
     }
 
-    const loadSender = async () => {
+    const loadSenders = async () => {
       try {
         setLoadingSender(true);
         setError("");
@@ -106,30 +110,27 @@ export default function ComposePage() {
           );
         }
 
-        const currentSender =
-          data.senders[0];
+        setSenders(data.senders);
 
-        setSender(currentSender);
+        const firstSender = data.senders[0];
 
-        /*
-         * Use the sender's configured hourly
-         * limit as the default.
-         */
+        setSelectedSenderId(firstSender.id);
+
         setHourlyLimit(
-          String(currentSender.hourlyLimit)
+          String(firstSender.hourlyLimit)
         );
       } catch (error) {
         setError(
           error instanceof Error
             ? error.message
-            : "Failed to load sender."
+            : "Failed to load senders."
         );
       } finally {
         setLoadingSender(false);
       }
     };
 
-    loadSender();
+    loadSenders();
   }, [
     session,
     sessionStatus,
@@ -237,9 +238,9 @@ export default function ComposePage() {
     setError("");
     setSuccess("");
 
-    if (!sender) {
+    if (!selectedSenderId) {
       setError(
-        "Sender account is not available yet."
+        "Please select a sender account."
       );
       return;
     }
@@ -274,7 +275,7 @@ export default function ComposePage() {
 
     try {
       const result = await scheduleEmails({
-        senderId: sender.id,
+        senderId: selectedSenderId,
         subject,
         body,
         startTime: new Date(startTime).toISOString(),
@@ -315,11 +316,11 @@ export default function ComposePage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-[#202124]">
+    <main className="min-h-screen bg-white text-[#202124] dark:bg-[#151817] dark:text-[#f1f3f2]">
       <div className="flex min-h-screen">
 
         {/* Sidebar */}
-        <aside className="w-[190px] shrink-0 border-r border-[#eeeeee] px-5 py-6">
+        <aside className="w-[190px] shrink-0 border-r border-[#eeeeee] px-5 py-6 dark:border-[#292e2b]">
 
           <div className="mb-7 text-[27px] font-black tracking-[-2px]">
             ONG
@@ -371,12 +372,14 @@ export default function ComposePage() {
             ◷ Scheduled
           </a>
 
-          <a
-            href="/dashboard"
-            className="flex h-[31px] items-center gap-2 rounded-lg px-2 text-[11px] text-[#555] hover:bg-[#f5f8f6]"
+          <button
+            type="button"
+            onClick={() => router.push("/senders")}
+            className="mt-2 flex h-[31px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f]"
           >
-            ➤ Sent
-          </a>
+            <span>✉</span>
+            Senders
+          </button>
 
         </aside>
 
@@ -384,31 +387,35 @@ export default function ComposePage() {
         <section className="flex min-w-0 flex-1 flex-col">
 
           {/* Header */}
-          <header className="flex h-[72px] items-center justify-between border-b border-[#eeeeee] px-7">
+          <header className="flex h-[72px] items-center justify-between border-b border-[#eeeeee] px-7 dark:border-[#292e2b]">
 
             <a
               href="/dashboard"
-              className="flex cursor-pointer items-center gap-2 text-[12px] text-[#555]"
+              className="flex cursor-pointer items-center gap-2 text-[12px] text-[#555] dark:text-[#b8c0bb]"
             >
               ← Back
             </a>
 
-            <button
-              type="button"
-              onClick={handleSchedule}
-              disabled={
-                isScheduling ||
-                loadingSender ||
-                !sender
-              }
-              className="cursor-pointer rounded-md bg-[#00b341] px-5 py-2 text-[10px] font-medium text-white hover:bg-[#00a83d] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loadingSender
-                ? "Loading..."
-                : isScheduling
-                  ? "Scheduling..."
-                  : "Schedule"}
-            </button>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+
+              <button
+                type="button"
+                onClick={handleSchedule}
+                disabled={
+                  isScheduling ||
+                  loadingSender ||
+                  !selectedSenderId
+                }
+                className="cursor-pointer rounded-md bg-[#00b341] px-5 py-2 text-[10px] font-medium text-white hover:bg-[#00a83d] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingSender
+                  ? "Loading..."
+                  : isScheduling
+                    ? "Scheduling..."
+                    : "Schedule"}
+              </button>
+            </div>
 
           </header>
 
@@ -422,23 +429,50 @@ export default function ComposePage() {
             {/* From */}
             <div className="mb-5">
 
-              <label className="mb-2 block text-[10px] font-medium text-[#777]">
+              <label className="mb-2 block text-[10px] font-medium text-[#777] dark:text-[#aeb7b2]">
                 From
               </label>
 
               <select
-                value={sender?.id ?? ""}
-                disabled
-                className="h-[38px] w-full cursor-not-allowed rounded-md border border-[#e5e8e6] bg-[#f8faf9] px-3 text-[11px] outline-none"
+                value={selectedSenderId}
+                onChange={(event) => {
+                  const newSenderId = event.target.value;
+
+                  setSelectedSenderId(newSenderId);
+
+                  const selectedSender = senders.find(
+                    (item) => item.id === newSenderId
+                  );
+
+                  if (selectedSender) {
+                    setHourlyLimit(
+                      String(selectedSender.hourlyLimit)
+                    );
+                  }
+                }}
+                disabled={loadingSender || senders.length === 0}
+                className="h-[38px] w-full cursor-pointer appearance-none rounded-md border border-[#e5e8e6] bg-[#f8faf9] px-3 text-[11px] text-[#202124] outline-none transition focus:border-[#00b341] disabled:cursor-not-allowed disabled:opacity-60 dark:border-[#37413c] dark:bg-[#202522] dark:text-[#f1f3f2]"
               >
-                {sender ? (
-                  <option value={sender.id}>
-                    {sender.email}
+                {loadingSender ? (
+                  <option value="">
+                    Loading senders...
+                  </option>
+                ) : senders.length === 0 ? (
+                  <option value="">
+                    No senders available
                   </option>
                 ) : (
-                  <option value="">
-                    Loading sender...
-                  </option>
+                  senders.map((item) => (
+                    <option
+                      key={item.id}
+                      value={item.id}
+                    >
+                      {item.email}
+                      {item.name
+                        ? ` — ${item.name}`
+                        : ""}
+                    </option>
+                  ))
                 )}
               </select>
 
@@ -449,7 +483,7 @@ export default function ComposePage() {
 
               <div className="mb-2 flex items-center justify-between">
 
-                <label className="text-[10px] font-medium text-[#777]">
+                <label className="text-[10px] font-medium text-[#777] dark:text-[#aeb7b2]">
                   To
                 </label>
 
@@ -474,7 +508,7 @@ export default function ComposePage() {
 
               </div>
 
-              <div className="min-h-[44px] rounded-md border border-[#e5e8e6] p-2">
+              <div className="min-h-[44px] rounded-md border border-[#e5e8e6] p-2 dark:border-[#37413c] dark:bg-[#202522]">
                 <div className="flex flex-wrap items-center gap-1.5">
 
                   {recipients.map((email) => (
@@ -551,7 +585,7 @@ export default function ComposePage() {
             {/* Subject */}
             <div className="mb-5">
 
-              <label className="mb-2 block text-[10px] font-medium text-[#777]">
+              <label className="mb-2 block text-[10px] font-medium text-[#777] dark:text-[#aeb7b2]">
                 Subject
               </label>
 
@@ -563,7 +597,7 @@ export default function ComposePage() {
                   )
                 }
                 placeholder="Enter email subject"
-                className="h-[38px] w-full rounded-md border border-[#e5e8e6] px-3 text-[11px] outline-none placeholder:text-[#aaa] focus:border-[#00b341]"
+                className="h-[38px] w-full rounded-md border border-[#e5e8e6] bg-white px-3 text-[11px] text-[#202124] outline-none placeholder:text-[#aaa] focus:border-[#00b341] dark:border-[#37413c] dark:bg-[#202522] dark:text-[#f1f3f2] dark:placeholder:text-[#777]"
               />
 
             </div>
@@ -573,7 +607,7 @@ export default function ComposePage() {
 
               <div>
 
-                <label className="mb-2 block text-[10px] font-medium text-[#777]">
+                <label className="mb-2 block text-[10px] font-medium text-[#777] dark:text-[#aeb7b2]">
                   Start time
                 </label>
 
@@ -586,7 +620,7 @@ export default function ComposePage() {
                       e.currentTarget.showPicker?.();
                     }}
                     min={new Date().toISOString().slice(0, 16)}
-                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#202124] outline-none transition focus:border-[#16b364]"
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#202124] outline-none transition focus:border-[#16b364] dark:border-[#37413c] dark:bg-[#202522] dark:text-[#f1f3f2]"
                   />
                 </div>
 
@@ -594,7 +628,7 @@ export default function ComposePage() {
 
               <div>
 
-                <label className="mb-2 block text-[10px] font-medium text-[#777]">
+                <label className="mb-2 block text-[10px] font-medium text-[#777] dark:text-[#aeb7b2]">
                   Delay between emails
                 </label>
 
@@ -609,7 +643,7 @@ export default function ComposePage() {
                         event.target.value
                       )
                     }
-                    className="h-[38px] w-full rounded-md border border-[#e5e8e6] px-3 pr-14 text-[11px] outline-none focus:border-[#00b341]"
+                    className="h-[38px] w-full rounded-md border border-[#e5e8e6] bg-white px-3 pr-14 text-[11px] text-[#202124] outline-none focus:border-[#00b341] dark:border-[#37413c] dark:bg-[#202522] dark:text-[#f1f3f2]"
                   />
 
                   <span className="absolute right-3 top-[12px] text-[9px] text-[#999]">
@@ -622,7 +656,7 @@ export default function ComposePage() {
 
               <div>
 
-                <label className="mb-2 block text-[10px] font-medium text-[#777]">
+                <label className="mb-2 block text-[10px] font-medium text-[#777] dark:text-[#aeb7b2]">
                   Hourly limit
                 </label>
 
@@ -637,7 +671,7 @@ export default function ComposePage() {
                         event.target.value
                       )
                     }
-                    className="h-[38px] w-full rounded-md border border-[#e5e8e6] px-3 pr-14 text-[11px] outline-none focus:border-[#00b341]"
+                    className="h-[38px] w-full rounded-md border border-[#e5e8e6] bg-white px-3 pr-14 text-[11px] text-[#202124] outline-none focus:border-[#00b341] dark:border-[#37413c] dark:bg-[#202522] dark:text-[#f1f3f2]"
                   />
 
                   <span className="absolute right-3 top-[12px] text-[9px] text-[#999]">
@@ -653,7 +687,7 @@ export default function ComposePage() {
             {/* Body */}
             <div>
 
-              <label className="mb-2 block text-[10px] font-medium text-[#777]">
+              <label className="mb-2 block text-[10px] font-medium text-[#777] dark:text-[#aeb7b2]">
                 Body
               </label>
 
@@ -665,7 +699,7 @@ export default function ComposePage() {
                   )
                 }
                 placeholder="Type your email..."
-                className="h-[300px] w-full resize-none rounded-md border border-[#e5e8e6] p-4 text-[11px] outline-none placeholder:text-[#aaa] focus:border-[#00b341]"
+                className="h-[300px] w-full resize-none rounded-md border border-[#e5e8e6] bg-white p-4 text-[11px] text-[#202124] outline-none placeholder:text-[#aaa] focus:border-[#00b341] dark:border-[#37413c] dark:bg-[#202522] dark:text-[#f1f3f2] dark:placeholder:text-[#777]"
               />
 
             </div>

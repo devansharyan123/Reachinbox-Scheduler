@@ -285,8 +285,8 @@ export default function Dashboard() {
               setActiveTab("sent")
             }
             className={`flex h-[31px] w-full cursor-pointer items-center justify-between rounded-lg px-2 text-[11px] ${activeTab === "sent"
-                ? "bg-[#e4f6ed] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
-                : "text-[#555] dark:text-[#b8c0bb]"
+              ? "bg-[#e4f6ed] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
+              : "text-[#555] dark:text-[#b8c0bb]"
               }`}
           >
             <span className="flex items-center gap-2">
@@ -297,6 +297,14 @@ export default function Dashboard() {
             <span className="text-[9px] text-[#999]">
               {sentCount}
             </span>
+          </button>
+          {/* Senders */}
+          <button
+            onClick={() => router.push("/senders")}
+            className="mt-4 flex h-[31px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f]"
+          >
+            <span>✉</span>
+            Senders
           </button>
         </aside>
 
