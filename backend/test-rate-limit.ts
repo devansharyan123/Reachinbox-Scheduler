@@ -1,13 +1,29 @@
-import { prisma } from "./src/config/database";
-import { redis } from "./src/config/redis";
-import { getEmailQueue } from "./src/queue/email.queue";
-
-const TEST_PREFIX = "testburst";
-
-const HOUR_MS = 60 * 60 * 1000;
+import "dotenv/config";
 
 const main = async () => {
-  console.log("Preparing rate-limit burst test...");
+  /*
+   * Load application modules only after dotenv
+   * has initialized process.env.
+   */
+  const { prisma } = await import(
+    "./src/config/database"
+  );
+
+  const { redis } = await import(
+    "./src/config/redis"
+  );
+
+  const { getEmailQueue } = await import(
+    "./src/queue/email.queue"
+  );
+
+  const TEST_PREFIX = "testburst";
+
+  const HOUR_MS = 60 * 60 * 1000;
+
+  console.log(
+    "Preparing rate-limit burst test...",
+  );
 
   /*
    * Find the 10 test emails created earlier.
@@ -15,7 +31,7 @@ const main = async () => {
   const emails = await prisma.email.findMany({
     where: {
       recipient: {
-        startsWith: `${TEST_PREFIX}`,
+        startsWith: TEST_PREFIX,
       },
     },
     orderBy: {
@@ -32,7 +48,8 @@ const main = async () => {
   const senderId = emails[0].senderId;
 
   /*
-   * Make sure all 10 emails belong to the same sender.
+   * Make sure all 10 emails belong to the
+   * same sender.
    */
   const differentSender = emails.some(
     (email) => email.senderId !== senderId,
@@ -45,18 +62,19 @@ const main = async () => {
   }
 
   /*
-   * Verify the sender's configured hourly limit.
+   * Verify sender configuration.
    */
-  const sender = await prisma.sender.findUnique({
-    where: {
-      id: senderId,
-    },
-    select: {
-      id: true,
-      email: true,
-      hourlyLimit: true,
-    },
-  });
+  const sender =
+    await prisma.sender.findUnique({
+      where: {
+        id: senderId,
+      },
+      select: {
+        id: true,
+        email: true,
+        hourlyLimit: true,
+      },
+    });
 
   if (!sender) {
     throw new Error(
@@ -84,10 +102,8 @@ const main = async () => {
   const queue = getEmailQueue(senderId);
 
   /*
-   * Remove the existing delayed BullMQ jobs.
-   *
-   * The worker is stopped, so these jobs cannot
-   * be processed while we are preparing the test.
+   * Remove existing BullMQ jobs for these
+   * test emails.
    */
   for (const email of emails) {
     const existingJob =
@@ -103,10 +119,8 @@ const main = async () => {
   }
 
   /*
-   * Reset the Redis hourly counter for this test.
-   *
-   * Otherwise previous test sends could consume
-   * some of the three available slots.
+   * Reset this sender's current-hour rate-limit
+   * counter so previous tests don't consume slots.
    */
   const hourWindow = Math.floor(
     Date.now() / HOUR_MS,
@@ -122,12 +136,14 @@ const main = async () => {
   );
 
   /*
-   * Make sure the database records are SCHEDULED.
+   * Reset the database state for the test emails.
    */
   await prisma.email.updateMany({
     where: {
       id: {
-        in: emails.map((email) => email.id),
+        in: emails.map(
+          (email) => email.id,
+        ),
       },
     },
     data: {
@@ -141,7 +157,7 @@ const main = async () => {
   /*
    * Re-add all 10 jobs with delay = 0.
    *
-   * This is the important part of the concurrency test.
+   * This is the actual concurrency test.
    */
   await queue.addBulk(
     emails.map((email) => ({
@@ -163,38 +179,53 @@ const main = async () => {
   );
 
   console.log("");
-  console.log("========================================");
-  console.log("BURST TEST READY");
-  console.log("========================================");
-  console.log(`Emails: ${emails.length}`);
-  console.log(`Hourly limit: ${sender.hourlyLimit}`);
-  console.log("BullMQ delay: 0ms");
-  console.log("Worker concurrency should be: 5");
+  console.log(
+    "========================================",
+  );
+  console.log(
+    "BURST TEST READY",
+  );
+  console.log(
+    "========================================",
+  );
+  console.log(
+    `Emails: ${emails.length}`,
+  );
+  console.log(
+    `Hourly limit: ${sender.hourlyLimit}`,
+  );
+  console.log(
+    "BullMQ delay: 0ms",
+  );
+  console.log(
+    "Worker concurrency should be: 5",
+  );
   console.log("");
   console.log(
     "Now start the worker with:",
   );
   console.log("");
-  console.log("npm run worker");
+  console.log(
+    "npm run worker",
+  );
   console.log("");
   console.log(
     "Expected result: 3 SENT, 7 delayed/SCHEDULED",
   );
-  console.log("========================================");
+  console.log(
+    "========================================",
+  );
 
   await queue.close();
+  await prisma.$disconnect();
+  await redis.quit();
 };
 
-main()
-  .catch(async (error) => {
-    console.error(
-      "Burst test preparation failed:",
-      error,
-    );
+main().catch((error) => {
+  console.error(
+    "Burst test preparation failed:",
+    error,
+  );
 
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-    await redis.quit();
-  });
+  process.exit(1);
+});

@@ -20,6 +20,8 @@ import {
 
 import { reconcileStaleProcessingEmails } from "../services/email.reconciliation.service";
 
+import { getEmailQueue } from "../queue/email.queue";
+
 const workers = new Map<string, Worker<SendEmailJob>>();
 
 const createWorkerForSender = (senderId: string) => {
@@ -123,19 +125,32 @@ const createWorkerForSender = (senderId: string) => {
         /*
          * Hourly limit has been reached.
          *
-         * The job remains scheduled and is moved to the
-         * next available hour instead of being failed/dropped.
+         * IMPORTANT:
+         *
+         * We do NOT call job.moveToDelayed() here.
+         *
+         * The current job is active and owned by the worker.
+         * Manually moving it to delayed state causes BullMQ
+         * lock errors when the worker later tries to finish it.
+         *
+         * Instead:
+         * 1. Put the database record back into SCHEDULED.
+         * 2. Create a new delayed BullMQ job.
+         * 3. Return normally so BullMQ can complete this job.
          */
         if (!rateLimit.allowed) {
           console.log(
-            `[${queueName}] Hourly limit reached for job ${job.id}.`,
+            `[${queueName}] Hourly limit reached for job ${job.id}. Rescheduling.`,
           );
 
-          await job.moveToDelayed(
-            Date.now() + rateLimit.delay,
-            job.token,
-          );
+          const retryJobId =
+            `${email.id}:rate-limit:${Math.floor(
+              Date.now() / (60 * 60 * 1000),
+            )}`;
 
+          /*
+           * Put the email back into SCHEDULED state.
+           */
           await prisma.email.update({
             where: {
               id: email.id,
@@ -146,6 +161,37 @@ const createWorkerForSender = (senderId: string) => {
                 "Delayed because sender hourly limit was reached",
             },
           });
+
+          /*
+           * Create a new delayed BullMQ job.
+           *
+           * The current active job will simply return and
+           * complete normally.
+           */
+          const queue = getEmailQueue(senderId);
+
+          await queue.add(
+            "send-email",
+            {
+              emailId: email.id,
+              senderId,
+            },
+            {
+              jobId: retryJobId,
+              delay: rateLimit.delay,
+              attempts: 3,
+              backoff: {
+                type: "exponential",
+                delay: 5000,
+              },
+            },
+          );
+
+          console.log(
+            `[${queueName}] Email ${email.id} rescheduled for ${
+              rateLimit.delay
+            }ms later.`,
+          );
 
           return;
         }
@@ -260,7 +306,9 @@ const createWorkerForSender = (senderId: string) => {
   );
 
   worker.on("completed", (job) => {
-    console.log(`[${queueName}] Job ${job.id} completed.`);
+    console.log(
+      `[${queueName}] Job ${job.id} completed.`,
+    );
   });
 
   worker.on("failed", (job, error) => {
@@ -271,12 +319,17 @@ const createWorkerForSender = (senderId: string) => {
   });
 
   worker.on("error", (error) => {
-    console.error(`[${queueName}] Worker error:`, error);
+    console.error(
+      `[${queueName}] Worker error:`,
+      error,
+    );
   });
 
   workers.set(senderId, worker);
 
-  console.log(`Worker created for sender ${senderId}`);
+  console.log(
+    `Worker created for sender ${senderId}`,
+  );
 };
 
 const discoverSenders = async () => {
@@ -310,7 +363,10 @@ const start = async () => {
    */
   setInterval(() => {
     discoverSenders().catch((error) => {
-      console.error("Failed to discover senders:", error);
+      console.error(
+        "Failed to discover senders:",
+        error,
+      );
     });
   }, 5000);
 
@@ -319,13 +375,18 @@ const start = async () => {
    */
   setInterval(() => {
     reconcileStaleProcessingEmails().catch((error) => {
-      console.error("Failed to reconcile stale emails:", error);
+      console.error(
+        "Failed to reconcile stale emails:",
+        error,
+      );
     });
   }, 60_000);
 };
 
 const shutdown = async (signal: string) => {
-  console.log(`${signal} received. Shutting down workers...`);
+  console.log(
+    `${signal} received. Shutting down workers...`,
+  );
 
   for (const worker of workers.values()) {
     await worker.close();
@@ -345,7 +406,10 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 start().catch(async (error) => {
-  console.error("Worker failed to start:", error);
+  console.error(
+    "Worker failed to start:",
+    error,
+  );
 
   await prisma.$disconnect();
 
