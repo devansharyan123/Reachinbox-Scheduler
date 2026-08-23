@@ -577,16 +577,18 @@ export default function ComposePage() {
                   Start time
                 </label>
 
-                <input
-                  type="datetime-local"
-                  value={startTime}
-                  onChange={(event) =>
-                    setStartTime(
-                      event.target.value
-                    )
-                  }
-                  className="h-[38px] w-full rounded-md border border-[#e5e8e6] px-3 text-[10px] outline-none focus:border-[#00b341]"
-                />
+                <div>
+                  <input
+                    type="datetime-local"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    onClick={(e) => {
+                      e.currentTarget.showPicker?.();
+                    }}
+                    min={new Date().toISOString().slice(0, 16)}
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-4 py-3 text-sm text-[#202124] outline-none transition focus:border-[#16b364]"
+                  />
+                </div>
 
               </div>
 
