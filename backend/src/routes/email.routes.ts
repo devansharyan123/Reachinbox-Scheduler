@@ -13,80 +13,82 @@ const upload = multer({
   },
 });
 
-router.post(
-  "/schedule",
-  upload.array("files", 10),
-  async (req, res) => {
-    try {
-      const files =
-        (req.files as Express.Multer.File[]) ?? [];
+router.post("/schedule", upload.array("files", 10), async (req, res) => {
+  try {
+    const files = (req.files as Express.Multer.File[]) ?? [];
 
-      const {
-        senderId,
-        subject,
-        body,
-        startTime,
-        delaySeconds,
-        hourlyLimit,
-      } = req.body;
+    const { senderId, subject, body, startTime, delaySeconds, hourlyLimit } =
+      req.body;
 
-      if (!senderId) {
-        return res.status(400).json({
-          error: "senderId is required",
-        });
-      }
+    const parsedDelaySeconds = Number(delaySeconds);
+    const parsedHourlyLimit = Number(hourlyLimit);
 
-      if (!subject || !body) {
-        return res.status(400).json({
-          error: "subject and body are required",
-        });
-      }
-
-      if (!startTime) {
-        return res.status(400).json({
-          error: "startTime is required",
-        });
-      }
-
-      const parsed = extractEmails(files);
-
-      if (parsed.emails.length === 0) {
-        return res.status(400).json({
-          error: "0 valid emails detected",
-          detectedCount: parsed.detectedCount,
-          duplicateCount: parsed.duplicateCount,
-        });
-      }
-
-      const result = await scheduleEmails({
-        senderId,
-        subject,
-        body,
-        startTime,
-        delaySeconds: Number(delaySeconds),
-        hourlyLimit: Number(hourlyLimit),
-        emails: parsed.emails,
-      });
-
-      return res.status(201).json({
-        message: "Emails scheduled successfully",
-        detectedCount: parsed.detectedCount,
-        scheduledCount: result.scheduledCount,
-        duplicateCount: parsed.duplicateCount,
-        firstScheduledAt: result.firstScheduledAt,
-        lastScheduledAt: result.lastScheduledAt,
-      });
-    } catch (error) {
-      console.error("Scheduling error:", error);
-
-      return res.status(500).json({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to schedule emails",
+    if (!Number.isFinite(parsedDelaySeconds) || parsedDelaySeconds < 0) {
+      return res.status(400).json({
+        error: "delaySeconds must be a finite number >= 0",
       });
     }
+
+    if (!Number.isInteger(parsedHourlyLimit) || parsedHourlyLimit <= 0) {
+      return res.status(400).json({
+        error: "hourlyLimit must be a positive integer",
+      });
+    }
+
+    if (!senderId) {
+      return res.status(400).json({
+        error: "senderId is required",
+      });
+    }
+
+    if (!subject || !body) {
+      return res.status(400).json({
+        error: "subject and body are required",
+      });
+    }
+
+    if (!startTime) {
+      return res.status(400).json({
+        error: "startTime is required",
+      });
+    }
+
+    const parsed = extractEmails(files);
+
+    if (parsed.emails.length === 0) {
+      return res.status(400).json({
+        error: "0 valid emails detected",
+        detectedCount: parsed.detectedCount,
+        duplicateCount: parsed.duplicateCount,
+      });
+    }
+
+    const result = await scheduleEmails({
+      senderId,
+      subject,
+      body,
+      startTime,
+      delaySeconds: parsedDelaySeconds,
+      hourlyLimit: parsedHourlyLimit,
+      emails: parsed.emails,
+    });
+
+    return res.status(201).json({
+      message: "Emails scheduled successfully",
+      detectedCount: parsed.detectedCount,
+      scheduledCount: result.scheduledCount,
+      duplicateCount: parsed.duplicateCount,
+      firstScheduledAt: result.firstScheduledAt,
+      lastScheduledAt: result.lastScheduledAt,
+    });
+  } catch (error) {
+    console.error("Scheduling error:", error);
+
+    return res.status(500).json({
+      error:
+        error instanceof Error ? error.message : "Failed to schedule emails",
+    });
   }
-);
+});
 
 export default router;
