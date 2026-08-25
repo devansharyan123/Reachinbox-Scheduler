@@ -45,6 +45,9 @@ export default function Dashboard() {
 
   const [profileOpen, setProfileOpen] = useState(false);
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   /*
    * Get the sender belonging to the
    * currently logged-in Google account.
@@ -141,6 +144,34 @@ export default function Dashboard() {
     }
   }, [sender]);
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mobileSidebarOpen]);
+
   const filteredEmails = useMemo(() => {
     if (activeTab === "scheduled") {
       return emails.filter(
@@ -198,88 +229,180 @@ export default function Dashboard() {
 
   if (sessionStatus === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-white text-sm text-[#999]">
+      <main className="min-h-screen overflow-x-hidden bg-white text-[#202124] dark:bg-[#151817] dark:text-[#f1f3f2]">
         Loading...
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-white text-[#202124] dark:bg-[#151817] dark:text-[#f1f3f2]">
+    <main className="min-h-screen overflow-x-hidden bg-white text-[#202124] dark:bg-[#151817] dark:text-[#f1f3f2]">
       <div className="flex min-h-screen">
 
         {/* Sidebar */}
-        <aside className="w-[190px] shrink-0 border-r border-[#eeeeee] px-5 py-6 dark:border-[#292e2b]">
+        {/* Mobile backdrop */}
+        {mobileSidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => setMobileSidebarOpen(false)}
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          />
+        )}
 
-          {/* Logo */}
-          <div className="mb-7 text-[27px] font-black tracking-[-2px]">
-            ONG
+        {/* Sidebar */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 flex h-screen shrink-0 flex-col border-r border-[#eeeeee] bg-white px-3 py-5 transition-all duration-200 dark:border-[#292e2b] dark:bg-[#151817] md:static md:z-auto ${mobileSidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full md:translate-x-0"
+            } ${sidebarCollapsed
+              ? "md:w-[68px]"
+              : "w-[190px] md:w-[210px]"
+            }`}
+        >
+          {/* Sidebar header */}
+          <div
+            className={`mb-7 flex items-center ${sidebarCollapsed
+              ? "justify-center"
+              : "justify-between"
+              }`}
+          >
+            {!sidebarCollapsed && (
+              <div className="pl-2 text-[27px] font-black tracking-[-2px]">
+                ONG
+              </div>
+            )}
+
+            {/* Desktop collapse button */}
+            <button
+              type="button"
+              aria-label={
+                sidebarCollapsed
+                  ? "Expand sidebar"
+                  : "Collapse sidebar"
+              }
+              onClick={() =>
+                setSidebarCollapsed(
+                  (collapsed) => !collapsed
+                )
+              }
+              className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[#7f8883] transition hover:bg-[#f2f5f3] dark:hover:bg-[#202522] md:flex"
+            >
+              {sidebarCollapsed ? "›" : "‹"}
+            </button>
           </div>
 
-          {/* User */}
-
+          {/* Mobile close button */}
+          <button
+            type="button"
+            onClick={() =>
+              setMobileSidebarOpen(false)
+            }
+            className="absolute right-3 top-4 flex h-8 w-8 items-center justify-center rounded-lg text-lg text-[#777] hover:bg-[#f2f5f3] md:hidden dark:hover:bg-[#202522]"
+            aria-label="Close sidebar"
+          >
+            ×
+          </button>
 
           {/* Compose */}
           <button
-            onClick={() =>
-              router.push("/compose")
-            }
-            className="mb-7 h-[30px] w-full cursor-pointer rounded-full border border-[#16b364] text-[11px] font-medium text-[#0aaf51] transition hover:bg-[#effcf5]"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/compose");
+            }}
+            className={`mb-7 h-[34px] cursor-pointer rounded-full border border-[#16b364] text-[11px] font-medium text-[#0aaf51] transition hover:bg-[#effcf5] ${sidebarCollapsed
+              ? "px-0"
+              : "w-full"
+              }`}
+            title="Compose new email"
           >
-            Compose
+            {sidebarCollapsed ? "+" : "Compose"}
           </button>
 
           {/* Core */}
-          <p className="mb-2 px-2 text-[9px] font-medium uppercase tracking-wide text-[#a0a0a0]">
-            Core
-          </p>
+          {!sidebarCollapsed && (
+            <p className="mb-2 px-2 text-[9px] font-medium uppercase tracking-wide text-[#a0a0a0]">
+              Core
+            </p>
+          )}
 
           {/* Scheduled */}
           <button
-            onClick={() =>
-              setActiveTab("scheduled")
-            }
-            className={`mb-1 flex h-[31px] w-full cursor-pointer items-center justify-between rounded-lg px-2 text-[11px] ${activeTab === "scheduled"
-              ? "bg-[#e4f6ed] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
-              : "text-[#555] dark:text-[#b8c0bb]"
+            onClick={() => {
+              setActiveTab("scheduled");
+              setMobileSidebarOpen(false);
+            }}
+            title="Scheduled emails"
+            className={`mb-1 flex h-[34px] w-full cursor-pointer items-center rounded-lg text-[11px] ${sidebarCollapsed
+              ? "justify-center px-0"
+              : "justify-between px-2"
+              } ${activeTab === "scheduled"
+                ? "bg-[#e4f6ed] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
+                : "text-[#555] dark:text-[#b8c0bb]"
               }`}
           >
             <span className="flex items-center gap-2">
               <span>◷</span>
-              Scheduled
+
+              {!sidebarCollapsed && (
+                <span>Scheduled</span>
+              )}
             </span>
 
-            <span className="text-[9px] text-[#999]">
-              {scheduledCount}
-            </span>
+            {!sidebarCollapsed && (
+              <span className="text-[9px] text-[#999]">
+                {scheduledCount}
+              </span>
+            )}
           </button>
 
           {/* Sent */}
           <button
-            onClick={() =>
-              setActiveTab("sent")
-            }
-            className={`flex h-[31px] w-full cursor-pointer items-center justify-between rounded-lg px-2 text-[11px] ${activeTab === "sent"
-              ? "bg-[#e4f6ed] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
-              : "text-[#555] dark:text-[#b8c0bb]"
+            onClick={() => {
+              setActiveTab("sent");
+              setMobileSidebarOpen(false);
+            }}
+            title="Sent emails"
+            className={`flex h-[34px] w-full cursor-pointer items-center rounded-lg text-[11px] ${sidebarCollapsed
+              ? "justify-center px-0"
+              : "justify-between px-2"
+              } ${activeTab === "sent"
+                ? "bg-[#e4f6ed] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
+                : "text-[#555] dark:text-[#b8c0bb]"
               }`}
           >
             <span className="flex items-center gap-2">
               <span>➤</span>
-              Sent
+
+              {!sidebarCollapsed && (
+                <span>Sent</span>
+              )}
             </span>
 
-            <span className="text-[9px] text-[#999]">
-              {sentCount}
-            </span>
+            {!sidebarCollapsed && (
+              <span className="text-[9px] text-[#999]">
+                {sentCount}
+              </span>
+            )}
           </button>
+
           {/* Senders */}
           <button
-            onClick={() => router.push("/senders")}
-            className="mt-4 flex h-[31px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f]"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/senders");
+            }}
+            title="Senders"
+            className={`mt-4 flex h-[34px] w-full cursor-pointer items-center rounded-lg text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f] ${sidebarCollapsed
+              ? "justify-center"
+              : "gap-2 px-2"
+              }`}
           >
             <span>✉</span>
-            Senders
+
+            {!sidebarCollapsed && (
+              <span>Senders</span>
+            )}
           </button>
         </aside>
 
@@ -287,9 +410,21 @@ export default function Dashboard() {
         <section className="flex min-w-0 flex-1 flex-col">
 
           {/* Top bar */}
-          <header className="flex h-[72px] items-center gap-4 border-b border-[#eeeeee] px-7 dark:border-[#292e2b]">
+          <header className="flex min-h-[64px] items-center gap-2 border-b border-[#eeeeee] px-3 py-3 sm:gap-4 sm:px-5 md:h-[72px] md:px-7 dark:border-[#292e2b]">
 
-            <div className="flex h-[32px] max-w-[455px] flex-1 items-center rounded-full bg-[#f4f7f5] px-4 dark:bg-[#202522]">
+            {/* Mobile menu */}
+            <button
+              type="button"
+              onClick={() =>
+                setMobileSidebarOpen(true)
+              }
+              aria-label="Open navigation"
+              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-lg text-[#777] hover:bg-[#f2f5f3] md:hidden dark:hover:bg-[#202522]"
+            >
+              ☰
+            </button>
+
+            <div className="flex h-[34px] min-w-0 max-w-[455px] flex-1 items-center rounded-full bg-[#f4f7f5] px-3 sm:px-4 dark:bg-[#202522]">
 
               <span className="mr-2 text-[13px] text-[#9da5a1]">
                 ⌕
@@ -297,7 +432,7 @@ export default function Dashboard() {
 
               <input
                 placeholder="Search"
-                className="w-full bg-transparent text-[11px] outline-none placeholder:text-[#aeb5b1]"
+                className="w-full min-w-0 bg-transparent text-[11px] outline-none placeholder:text-[#aeb5b1]"
               />
 
             </div>
@@ -305,7 +440,7 @@ export default function Dashboard() {
             {/* Refresh */}
             <button
               onClick={loadEmails}
-              className="cursor-pointer text-[15px] text-[#8f9893]"
+              className="hidden cursor-pointer text-[15px] text-[#8f9893] sm:block"
               title="Refresh"
             >
               ↻
@@ -335,7 +470,7 @@ export default function Dashboard() {
               </button>
 
               {profileOpen && (
-                <div className="absolute right-0 top-11 z-50 w-64 rounded-xl border border-[#333] bg-[#1b1b1b] p-4 shadow-2xl">
+                <div className="absolute right-0 top-11 z-50 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-[#333] bg-[#1b1b1b] p-4 shadow-2xl">
 
                   <div className="flex items-center gap-3">
                     {session?.user?.image ? (
@@ -413,15 +548,15 @@ export default function Dashboard() {
                 (email) => (
                   <button
                     key={email.id}
-                    className="group flex w-full cursor-pointer items-center gap-5 border-b border-[#eeeeee] px-7 py-4 text-left transition hover:bg-[#fafcfb] dark:border-[#292e2b] dark:hover:bg-[#1c211f]"
+                    className="group flex w-full cursor-pointer flex-col gap-2 border-b border-[#eeeeee] px-4 py-4 text-left transition hover:bg-[#fafcfb] sm:px-5 md:flex-row md:items-center md:gap-5 md:px-7 dark:border-[#292e2b] dark:hover:bg-[#1c211f]"
                   >
 
                     {/* Recipient */}
-                    <div className="w-[120px] shrink-0 text-[11px] font-medium">
+                    <div className="w-full shrink-0 truncate text-[11px] font-medium sm:max-w-[240px] md:w-[160px] lg:w-[190px]">
                       To: {email.recipient}
                     </div>
 
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className="flex min-w-0 w-full flex-1 flex-wrap items-center gap-2 md:flex-nowrap">
 
                       {/* Status / time */}
                       <span
@@ -446,12 +581,12 @@ export default function Dashboard() {
                       </span>
 
                       {/* Subject */}
-                      <span className="shrink-0 text-[11px] font-medium">
+                      <span className="max-w-full truncate text-[11px] font-medium md:max-w-[240px]">
                         {email.subject}
                       </span>
 
                       {/* Preview */}
-                      <span className="truncate text-[10px] text-[#9a9f9c]">
+                      <span className="w-full truncate text-[10px] text-[#9a9f9c] md:w-auto md:flex-1">
                         -{" "}
                         {getPreview(
                           email.body
@@ -461,7 +596,7 @@ export default function Dashboard() {
                     </div>
 
                     {/* Star */}
-                    <span className="text-[15px] text-[#c7cdca] transition group-hover:text-[#888]">
+                    <span className="hidden shrink-0 text-[15px] text-[#c7cdca] transition group-hover:text-[#888] md:block">
                       ☆
                     </span>
 

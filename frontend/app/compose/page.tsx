@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/theme-toggle";
 import {
@@ -72,6 +72,10 @@ export default function ComposePage() {
   const [success, setSuccess] =
     useState("");
 
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
   /*
    * Get the sender belonging to the
    * currently authenticated Google account.
@@ -136,6 +140,33 @@ export default function ComposePage() {
     sessionStatus,
     router,
   ]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mobileSidebarOpen]);
 
   const parseFiles = async (
     selectedFiles: File[]
@@ -320,83 +351,162 @@ export default function ComposePage() {
       <div className="flex min-h-screen">
 
         {/* Sidebar */}
-        <aside className="w-[190px] shrink-0 border-r border-[#eeeeee] px-5 py-6 dark:border-[#292e2b]">
+        {mobileSidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => setMobileSidebarOpen(false)}
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          />
+        )}
 
-          <div className="mb-7 text-[27px] font-black tracking-[-2px]">
-            ONG
-          </div>
-
-          {/* Logged-in user */}
-          <div className="mb-3 flex items-center gap-2 px-1 py-2">
-
-            {session?.user?.image ? (
-              <img
-                src={session.user.image}
-                alt=""
-                className="h-8 w-8 rounded-full"
-              />
-            ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[11px] font-semibold">
-                {session?.user?.name
-                  ?.charAt(0)
-                  .toUpperCase() ?? "U"}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 flex h-screen shrink-0 flex-col border-r border-[#eeeeee] bg-white px-3 py-5 transition-all duration-200 dark:border-[#292e2b] dark:bg-[#151817] md:static md:z-auto ${
+            mobileSidebarOpen
+              ? "translate-x-0"
+              : "-translate-x-full md:translate-x-0"
+          } ${
+            sidebarCollapsed
+              ? "md:w-[68px]"
+              : "w-[190px] md:w-[210px]"
+          }`}
+        >
+          {/* Sidebar header */}
+          <div
+            className={`mb-7 flex items-center ${
+              sidebarCollapsed
+                ? "justify-center"
+                : "justify-between"
+            }`}
+          >
+            {!sidebarCollapsed && (
+              <div className="pl-2 text-[27px] font-black tracking-[-2px]">
+                ONG
               </div>
             )}
 
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-medium">
-                {session?.user?.name ??
-                  "User"}
-              </p>
-
-              <p className="truncate text-[9px] text-[#9a9a9a]">
-                {session?.user?.email}
-              </p>
-            </div>
+            <button
+              type="button"
+              aria-label={
+                sidebarCollapsed
+                  ? "Expand sidebar"
+                  : "Collapse sidebar"
+              }
+              onClick={() =>
+                setSidebarCollapsed(
+                  (collapsed) => !collapsed
+                )
+              }
+              className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[#7f8883] transition hover:bg-[#f2f5f3] dark:hover:bg-[#202522] md:flex"
+            >
+              {sidebarCollapsed ? "›" : "‹"}
+            </button>
           </div>
 
+          {/* Mobile close */}
           <button
-            className="mb-7 h-[30px] w-full cursor-pointer rounded-full border border-[#16b364] text-[11px] font-medium text-[#0aaf51]"
+            type="button"
+            onClick={() => setMobileSidebarOpen(false)}
+            className="absolute right-3 top-4 flex h-8 w-8 items-center justify-center rounded-lg text-lg text-[#777] hover:bg-[#f2f5f3] md:hidden dark:hover:bg-[#202522]"
+            aria-label="Close sidebar"
           >
-            Compose
+            ×
           </button>
 
-          <p className="mb-2 px-2 text-[9px] font-medium uppercase tracking-wide text-[#a0a0a0]">
-            Core
-          </p>
+          {/* Compose */}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/compose");
+            }}
+            className={`mb-7 h-[34px] cursor-pointer rounded-full border border-[#16b364] text-[11px] font-medium text-[#0aaf51] transition hover:bg-[#effcf5] ${
+              sidebarCollapsed
+                ? "px-0"
+                : "w-full"
+            }`}
+            title="Compose new email"
+          >
+            {sidebarCollapsed ? "+" : "Compose"}
+          </button>
+
+          {!sidebarCollapsed && (
+            <p className="mb-2 px-2 text-[9px] font-medium uppercase tracking-wide text-[#a0a0a0]">
+              Core
+            </p>
+          )}
 
           <a
             href="/dashboard"
-            className="mb-1 flex h-[31px] items-center gap-2 rounded-lg px-2 text-[11px] text-[#555] hover:bg-[#f5f8f6]"
+            onClick={() => setMobileSidebarOpen(false)}
+            title="Scheduled emails"
+            className={`mb-1 flex h-[34px] w-full items-center rounded-lg text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f] ${
+              sidebarCollapsed
+                ? "justify-center px-0"
+                : "gap-2 px-2"
+            }`}
           >
-            ◷ Scheduled
+            <span>◷</span>
+            {!sidebarCollapsed && <span>Scheduled</span>}
           </a>
 
           <button
             type="button"
-            onClick={() => router.push("/senders")}
-            className="mt-2 flex h-[31px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f]"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/dashboard");
+            }}
+            title="Sent emails"
+            className={`mb-1 flex h-[34px] w-full cursor-pointer items-center rounded-lg text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f] ${
+              sidebarCollapsed
+                ? "justify-center px-0"
+                : "gap-2 px-2"
+            }`}
           >
-            <span>✉</span>
-            Senders
+            <span>➤</span>
+            {!sidebarCollapsed && <span>Sent</span>}
           </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/senders");
+            }}
+            title="Senders"
+            className={`mt-3 flex h-[34px] w-full cursor-pointer items-center rounded-lg text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f] ${
+              sidebarCollapsed
+                ? "justify-center"
+                : "gap-2 px-2"
+            }`}
+          >
+            <span>✉</span>
+            {!sidebarCollapsed && <span>Senders</span>}
+          </button>
         </aside>
 
         {/* Main */}
         <section className="flex min-w-0 flex-1 flex-col">
 
           {/* Header */}
-          <header className="flex h-[72px] items-center justify-between border-b border-[#eeeeee] px-7 dark:border-[#292e2b]">
+          <header className="flex min-h-[64px] items-center gap-2 border-b border-[#eeeeee] px-3 py-3 sm:gap-4 sm:px-5 md:h-[72px] md:px-7 dark:border-[#292e2b]">
+            <button
+              type="button"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open navigation"
+              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-lg text-[#777] hover:bg-[#f2f5f3] md:hidden dark:hover:bg-[#202522]"
+            >
+              ☰
+            </button>
 
             <a
               href="/dashboard"
-              className="flex cursor-pointer items-center gap-2 text-[12px] text-[#555] dark:text-[#b8c0bb]"
+              className="min-w-0 truncate text-[12px] text-[#555] dark:text-[#b8c0bb]"
             >
               ← Back
             </a>
 
-            <div className="flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2">
               <ThemeToggle />
 
               <button
@@ -407,7 +517,7 @@ export default function ComposePage() {
                   loadingSender ||
                   !selectedSenderId
                 }
-                className="cursor-pointer rounded-md bg-[#00b341] px-5 py-2 text-[10px] font-medium text-white hover:bg-[#00a83d] disabled:cursor-not-allowed disabled:opacity-60"
+                className="cursor-pointer rounded-md bg-[#00b341] px-3 py-2 text-[10px] font-medium text-white hover:bg-[#00a83d] disabled:cursor-not-allowed disabled:opacity-60 sm:px-5"
               >
                 {loadingSender
                   ? "Loading..."
@@ -415,12 +525,78 @@ export default function ComposePage() {
                     ? "Scheduling..."
                     : "Schedule"}
               </button>
-            </div>
 
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setProfileOpen((open) => !open)
+                  }
+                  className="cursor-pointer rounded-full focus:outline-none"
+                  aria-label="Open profile menu"
+                >
+                  {session?.user?.image ? (
+                    <img
+                      src={session.user.image}
+                      alt={session.user.name ?? "User"}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[10px] font-semibold">
+                      {session?.user?.name
+                        ?.charAt(0)
+                        .toUpperCase() ?? "U"}
+                    </div>
+                  )}
+                </button>
+
+                {profileOpen && (
+                  <div className="absolute right-0 top-11 z-50 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-[#333] bg-[#1b1b1b] p-4 shadow-2xl">
+                    <div className="flex items-center gap-3">
+                      {session?.user?.image ? (
+                        <img
+                          src={session.user.image}
+                          alt={session.user.name ?? "User"}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d9b08c] text-sm font-semibold">
+                          {session?.user?.name
+                            ?.charAt(0)
+                            .toUpperCase() ?? "U"}
+                        </div>
+                      )}
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white">
+                          {session?.user?.name ?? "User"}
+                        </p>
+                        <p className="truncate text-xs text-[#999]">
+                          {session?.user?.email ?? ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="my-3 border-t border-[#333]" />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        signOut({ callbackUrl: "/" })
+                      }
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-red-400 transition hover:bg-[#252525]"
+                    >
+                      <span>↪</span>
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </header>
 
           {/* Compose */}
-          <div className="mx-auto w-full max-w-[850px] px-10 py-8">
+          <div className="mx-auto w-full max-w-[850px] px-4 py-6 sm:px-6 sm:py-8 md:px-10">
 
             <h1 className="mb-7 text-[20px] font-semibold">
               Compose New Email
@@ -603,7 +779,7 @@ export default function ComposePage() {
             </div>
 
             {/* Scheduling */}
-            <div className="mb-5 grid grid-cols-3 gap-4">
+            <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
 
               <div>
 
@@ -699,7 +875,7 @@ export default function ComposePage() {
                   )
                 }
                 placeholder="Type your email..."
-                className="h-[300px] w-full resize-none rounded-md border border-[#e5e8e6] bg-white p-4 text-[11px] text-[#202124] outline-none placeholder:text-[#aaa] focus:border-[#00b341] dark:border-[#37413c] dark:bg-[#202522] dark:text-[#f1f3f2] dark:placeholder:text-[#777]"
+                className="h-[260px] w-full resize-none sm:h-[300px] rounded-md border border-[#e5e8e6] bg-white p-4 text-[11px] text-[#202124] outline-none placeholder:text-[#aaa] focus:border-[#00b341] dark:border-[#37413c] dark:bg-[#202522] dark:text-[#f1f3f2] dark:placeholder:text-[#777]"
               />
 
             </div>
@@ -719,7 +895,7 @@ export default function ComposePage() {
             )}
 
             {/* Footer */}
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
               <p className="text-[9px] text-[#999]">
                 {recipients.length} recipient

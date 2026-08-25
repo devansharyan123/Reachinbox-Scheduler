@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/theme-toggle";
 import {
@@ -38,6 +38,10 @@ export default function SendersPage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (status === "loading") {
@@ -82,6 +86,33 @@ export default function SendersPage() {
 
     loadSenders();
   }, [session, status, router]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [mobileSidebarOpen]);
 
   const handleAddSender = async (
     event: FormEvent<HTMLFormElement>
@@ -215,114 +246,238 @@ export default function SendersPage() {
       <div className="flex min-h-screen">
 
         {/* Sidebar */}
-        <aside className="w-[190px] shrink-0 border-r border-[#eeeeee] px-5 py-6 dark:border-[#292e2b]">
+        {mobileSidebarOpen && (
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => setMobileSidebarOpen(false)}
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          />
+        )}
 
-          {/* Logo */}
-          <div className="mb-7 text-[27px] font-black tracking-[-2px]">
-            ONG
-          </div>
-
-          {/* User */}
-          <div className="mb-3 flex items-center gap-2 px-1 py-2">
-
-            {session?.user?.image ? (
-              <img
-                src={session.user.image}
-                alt=""
-                className="h-8 w-8 rounded-full"
-              />
-            ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[11px] font-semibold">
-                {session?.user?.name
-                  ?.charAt(0)
-                  .toUpperCase() ?? "U"}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 flex h-screen shrink-0 flex-col border-r border-[#eeeeee] bg-white px-3 py-5 transition-all duration-200 dark:border-[#292e2b] dark:bg-[#151817] md:static md:z-auto ${
+            mobileSidebarOpen
+              ? "translate-x-0"
+              : "-translate-x-full md:translate-x-0"
+          } ${
+            sidebarCollapsed
+              ? "md:w-[68px]"
+              : "w-[190px] md:w-[210px]"
+          }`}
+        >
+          <div
+            className={`mb-7 flex items-center ${
+              sidebarCollapsed
+                ? "justify-center"
+                : "justify-between"
+            }`}
+          >
+            {!sidebarCollapsed && (
+              <div className="pl-2 text-[27px] font-black tracking-[-2px]">
+                ONG
               </div>
             )}
 
-            <div className="min-w-0">
-              <p className="truncate text-[12px] font-medium">
-                {session?.user?.name ??
-                  "User"}
-              </p>
-
-              <p className="truncate text-[9px] text-[#9a9a9a]">
-                {session?.user?.email}
-              </p>
-            </div>
-
+            <button
+              type="button"
+              aria-label={
+                sidebarCollapsed
+                  ? "Expand sidebar"
+                  : "Collapse sidebar"
+              }
+              onClick={() =>
+                setSidebarCollapsed(
+                  (collapsed) => !collapsed
+                )
+              }
+              className="hidden h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-[#7f8883] transition hover:bg-[#f2f5f3] dark:hover:bg-[#202522] md:flex"
+            >
+              {sidebarCollapsed ? "›" : "‹"}
+            </button>
           </div>
 
-          {/* Compose */}
           <button
-            onClick={() =>
-              router.push("/compose")
-            }
-            className="mb-7 h-[30px] w-full cursor-pointer rounded-full border border-[#16b364] text-[11px] font-medium text-[#0aaf51] transition hover:bg-[#effcf5] dark:hover:bg-[#173326]"
+            type="button"
+            onClick={() => setMobileSidebarOpen(false)}
+            className="absolute right-3 top-4 flex h-8 w-8 items-center justify-center rounded-lg text-lg text-[#777] hover:bg-[#f2f5f3] md:hidden dark:hover:bg-[#202522]"
+            aria-label="Close sidebar"
           >
-            Compose
+            ×
           </button>
 
-          {/* Core */}
-          <p className="mb-2 px-2 text-[9px] font-medium uppercase tracking-wide text-[#a0a0a0]">
-            Core
-          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/compose");
+            }}
+            className={`mb-7 h-[34px] cursor-pointer rounded-full border border-[#16b364] text-[11px] font-medium text-[#0aaf51] transition hover:bg-[#effcf5] ${
+              sidebarCollapsed
+                ? "px-0"
+                : "w-full"
+            }`}
+            title="Compose new email"
+          >
+            {sidebarCollapsed ? "+" : "Compose"}
+          </button>
+
+          {!sidebarCollapsed && (
+            <p className="mb-2 px-2 text-[9px] font-medium uppercase tracking-wide text-[#a0a0a0]">
+              Core
+            </p>
+          )}
 
           <button
-            onClick={() =>
-              router.push("/dashboard")
-            }
-            className="mb-1 flex h-[31px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f]"
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/dashboard");
+            }}
+            title="Scheduled emails"
+            className={`mb-1 flex h-[34px] w-full cursor-pointer items-center rounded-lg text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f] ${
+              sidebarCollapsed
+                ? "justify-center px-0"
+                : "gap-2 px-2"
+            }`}
           >
             <span>◷</span>
-            Scheduled
+            {!sidebarCollapsed && <span>Scheduled</span>}
           </button>
 
           <button
-            onClick={() =>
-              router.push("/dashboard")
-            }
-            className="flex h-[31px] w-full cursor-pointer items-center gap-2 rounded-lg px-2 text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f]"
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/dashboard");
+            }}
+            title="Sent emails"
+            className={`mb-1 flex h-[34px] w-full cursor-pointer items-center rounded-lg text-[11px] text-[#555] hover:bg-[#f5f8f6] dark:text-[#b8c0bb] dark:hover:bg-[#1c211f] ${
+              sidebarCollapsed
+                ? "justify-center px-0"
+                : "gap-2 px-2"
+            }`}
           >
             <span>➤</span>
-            Sent
+            {!sidebarCollapsed && <span>Sent</span>}
           </button>
 
-          {/* Senders */}
           <button
-            onClick={() =>
-              router.push("/senders")
-            }
-            className="mt-4 flex h-[31px] w-full cursor-pointer items-center gap-2 rounded-lg bg-[#e4f6ed] px-2 text-[11px] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed]"
+            type="button"
+            onClick={() => {
+              setMobileSidebarOpen(false);
+              router.push("/senders");
+            }}
+            title="Senders"
+            className={`mt-3 flex h-[34px] w-full cursor-pointer items-center rounded-lg bg-[#e4f6ed] text-[11px] text-[#303030] dark:bg-[#1d3a2b] dark:text-[#e8f5ed] ${
+              sidebarCollapsed
+                ? "justify-center"
+                : "gap-2 px-2"
+            }`}
           >
             <span>✉</span>
-            Senders
+            {!sidebarCollapsed && <span>Senders</span>}
           </button>
-
         </aside>
 
         {/* Main */}
         <section className="flex min-w-0 flex-1 flex-col">
 
           {/* Header */}
-          <header className="flex h-[72px] items-center justify-between border-b border-[#eeeeee] px-7 dark:border-[#292e2b]">
+          <header className="flex min-h-[64px] items-center gap-2 border-b border-[#eeeeee] px-3 py-3 sm:gap-4 sm:px-5 md:h-[72px] md:px-7 dark:border-[#292e2b]">
+            <button
+              type="button"
+              onClick={() => setMobileSidebarOpen(true)}
+              aria-label="Open navigation"
+              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-lg text-[#777] hover:bg-[#f2f5f3] md:hidden dark:hover:bg-[#202522]"
+            >
+              ☰
+            </button>
 
             <button
-              onClick={() =>
-                router.push("/dashboard")
-              }
-              className="cursor-pointer text-[12px] text-[#555] hover:text-[#202124] dark:text-[#b8c0bb] dark:hover:text-white"
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="truncate text-[12px] text-[#555] hover:text-[#202124] dark:text-[#b8c0bb] dark:hover:text-white"
             >
               ← Back
             </button>
 
-            <ThemeToggle />
+            <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
 
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setProfileOpen((open) => !open)
+                  }
+                  className="cursor-pointer rounded-full focus:outline-none"
+                  aria-label="Open profile menu"
+                >
+                  {session?.user?.image ? (
+                    <img
+                      src={session.user.image}
+                      alt={session.user.name ?? "User"}
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[10px] font-semibold">
+                      {session?.user?.name
+                        ?.charAt(0)
+                        .toUpperCase() ?? "U"}
+                    </div>
+                  )}
+                </button>
+
+                {profileOpen && (
+                  <div className="absolute right-0 top-11 z-50 w-[min(16rem,calc(100vw-1.5rem))] rounded-xl border border-[#333] bg-[#1b1b1b] p-4 shadow-2xl">
+                    <div className="flex items-center gap-3">
+                      {session?.user?.image ? (
+                        <img
+                          src={session.user.image}
+                          alt={session.user.name ?? "User"}
+                          className="h-10 w-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d9b08c] text-sm font-semibold">
+                          {session?.user?.name
+                            ?.charAt(0)
+                            .toUpperCase() ?? "U"}
+                        </div>
+                      )}
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white">
+                          {session?.user?.name ?? "User"}
+                        </p>
+                        <p className="truncate text-xs text-[#999]">
+                          {session?.user?.email ?? ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="my-3 border-t border-[#333]" />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        signOut({ callbackUrl: "/" })
+                      }
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-red-400 transition hover:bg-[#252525]"
+                    >
+                      <span>↪</span>
+                      Logout
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </header>
 
           {/* Content */}
-          <div className="mx-auto w-full max-w-[900px] px-10 py-10">
+          <div className="mx-auto w-full max-w-[900px] px-4 py-6 sm:px-6 sm:py-8 md:px-10 md:py-10">
 
-            <div className="mb-8 flex items-center justify-between">
+            <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
 
               <div>
                 <h1 className="text-[22px] font-semibold">
@@ -376,7 +531,7 @@ export default function SendersPage() {
                   Add Sender
                 </h2>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
                   {/* Email */}
                   <div>
@@ -439,12 +594,12 @@ export default function SendersPage() {
 
                 </div>
 
-                <div className="mt-5 flex justify-end">
+                <div className="mt-5 flex justify-stretch sm:justify-end">
 
                   <button
                     type="submit"
                     disabled={saving}
-                    className="cursor-pointer rounded-md bg-[#00b341] px-5 py-2.5 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
+                    className="w-full cursor-pointer rounded-md bg-[#00b341] px-5 py-2.5 text-[10px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                   >
                     {saving
                       ? "Adding..."
@@ -478,7 +633,7 @@ export default function SendersPage() {
                 senders.map((sender) => (
                   <div
                     key={sender.id}
-                    className="flex items-center justify-between rounded-xl border border-[#e5e8e6] bg-white px-5 py-4 dark:border-[#37413c] dark:bg-[#1c211f]"
+                    className="flex flex-col gap-4 rounded-xl border sm:flex-row sm:items-center sm:justify-between border-[#e5e8e6] bg-white px-5 py-4 dark:border-[#37413c] dark:bg-[#1c211f]"
                   >
 
                     <div className="flex min-w-0 items-center gap-4">
@@ -521,7 +676,7 @@ export default function SendersPage() {
                           ? "You must keep at least one sender"
                           : "Remove sender"
                       }
-                      className="cursor-pointer rounded-md px-3 py-2 text-[10px] text-[#d9534f] hover:bg-[#fff1f0] disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-[#351d1d]"
+                      className="w-full cursor-pointer rounded-md px-3 py-2 text-[10px] text-[#d9534f] sm:w-auto hover:bg-[#fff1f0] disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-[#351d1d]"
                     >
                       {deletingId ===
                       sender.id
