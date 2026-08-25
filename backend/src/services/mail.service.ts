@@ -22,6 +22,10 @@ export const sendEmail = async ({
   subject: string;
   text: string;
 }) => {
+  if (to === "retrytest@example.com") {
+    throw new Error("Intentional retry test failure");
+  }
+
   const info = await transporter.sendMail({
     from,
     to,

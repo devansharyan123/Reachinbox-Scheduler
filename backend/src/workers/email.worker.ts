@@ -117,10 +117,7 @@ const createWorkerForSender = (senderId: string) => {
          * Redis INCR guarantees that concurrent workers
          * cannot reserve the same slot.
          */
-        const rateLimit = await reserveEmailSlot(
-          senderId,
-          sender.hourlyLimit,
-        );
+        const rateLimit = await reserveEmailSlot(senderId, sender.hourlyLimit);
 
         /*
          * Hourly limit has been reached.
@@ -143,10 +140,9 @@ const createWorkerForSender = (senderId: string) => {
             `[${queueName}] Hourly limit reached for job ${job.id}. Rescheduling.`,
           );
 
-          const retryJobId =
-            `${email.id}:rate-limit:${Math.floor(
-              Date.now() / (60 * 60 * 1000),
-            )}`;
+          const retryJobId = `${email.id}:rate-limit:${Math.floor(
+            Date.now() / (60 * 60 * 1000),
+          )}`;
 
           /*
            * Put the email back into SCHEDULED state.
@@ -157,8 +153,7 @@ const createWorkerForSender = (senderId: string) => {
             },
             data: {
               status: "SCHEDULED",
-              lastError:
-                "Delayed because sender hourly limit was reached",
+              lastError: "Delayed because sender hourly limit was reached",
             },
           });
 
@@ -212,7 +207,7 @@ const createWorkerForSender = (senderId: string) => {
         await enforceMinimumSendDelay(senderId);
 
         console.log(
-          `[${queueName}] Sending email ${email.id} to ${email.recipient}`,
+          `[${new Date().toISOString()}] [${queueName}] Sending email ${email.id} to ${email.recipient}`,
         );
 
         /*
@@ -245,14 +240,10 @@ const createWorkerForSender = (senderId: string) => {
           },
         });
 
-        console.log(
-          `[${queueName}] Email ${email.id} sent successfully.`,
-        );
+        console.log(`[${queueName}] Email ${email.id} sent successfully.`);
 
         if (result.previewUrl) {
-          console.log(
-            `[${queueName}] Preview: ${result.previewUrl}`,
-          );
+          console.log(`[${queueName}] Preview: ${result.previewUrl}`);
         }
       } catch (error) {
         /*
@@ -287,9 +278,7 @@ const createWorkerForSender = (senderId: string) => {
           },
         });
 
-        console.error(
-          `[${queueName}] Email ${email.id} failed: ${message}`,
-        );
+        console.error(`[${queueName}] Email ${email.id} failed: ${message}`);
 
         /*
          * Throw so BullMQ knows the job failed
@@ -306,30 +295,20 @@ const createWorkerForSender = (senderId: string) => {
   );
 
   worker.on("completed", (job) => {
-    console.log(
-      `[${queueName}] Job ${job.id} completed.`,
-    );
+    console.log(`[${queueName}] Job ${job.id} completed.`);
   });
 
   worker.on("failed", (job, error) => {
-    console.error(
-      `[${queueName}] Job ${job?.id} failed:`,
-      error.message,
-    );
+    console.error(`[${queueName}] Job ${job?.id} failed:`, error.message);
   });
 
   worker.on("error", (error) => {
-    console.error(
-      `[${queueName}] Worker error:`,
-      error,
-    );
+    console.error(`[${queueName}] Worker error:`, error);
   });
 
   workers.set(senderId, worker);
 
-  console.log(
-    `Worker created for sender ${senderId}`,
-  );
+  console.log(`Worker created for sender ${senderId}`);
 };
 
 const discoverSenders = async () => {
@@ -363,10 +342,7 @@ const start = async () => {
    */
   setInterval(() => {
     discoverSenders().catch((error) => {
-      console.error(
-        "Failed to discover senders:",
-        error,
-      );
+      console.error("Failed to discover senders:", error);
     });
   }, 5000);
 
@@ -375,18 +351,13 @@ const start = async () => {
    */
   setInterval(() => {
     reconcileStaleProcessingEmails().catch((error) => {
-      console.error(
-        "Failed to reconcile stale emails:",
-        error,
-      );
+      console.error("Failed to reconcile stale emails:", error);
     });
   }, 60_000);
 };
 
 const shutdown = async (signal: string) => {
-  console.log(
-    `${signal} received. Shutting down workers...`,
-  );
+  console.log(`${signal} received. Shutting down workers...`);
 
   for (const worker of workers.values()) {
     await worker.close();
@@ -406,10 +377,7 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 start().catch(async (error) => {
-  console.error(
-    "Worker failed to start:",
-    error,
-  );
+  console.error("Worker failed to start:", error);
 
   await prisma.$disconnect();
 
