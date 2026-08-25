@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import ThemeToggle from "@/components/theme-toggle";
 
@@ -42,6 +42,8 @@ export default function Dashboard() {
 
   const [error, setError] =
     useState("");
+
+  const [profileOpen, setProfileOpen] = useState(false);
 
   /*
    * Get the sender belonging to the
@@ -215,34 +217,7 @@ export default function Dashboard() {
           </div>
 
           {/* User */}
-          <div className="mb-3 flex items-center gap-2 rounded-lg px-1 py-2">
 
-            {session?.user?.image ? (
-              <img
-                src={session.user.image}
-                alt=""
-                className="h-8 w-8 rounded-full"
-              />
-            ) : (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[11px] font-semibold">
-                {session?.user?.name
-                  ?.charAt(0)
-                  .toUpperCase() ?? "U"}
-              </div>
-            )}
-
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[12px] font-medium">
-                {session?.user?.name ??
-                  "User"}
-              </p>
-
-              <p className="truncate text-[9px] text-[#9a9a9a]">
-                {session?.user?.email}
-              </p>
-            </div>
-
-          </div>
 
           {/* Compose */}
           <button
@@ -338,22 +313,73 @@ export default function Dashboard() {
 
             <ThemeToggle />
 
-            <div className="ml-auto">
+            <div className="relative ml-auto">
+              <button
+                type="button"
+                onClick={() => setProfileOpen((open) => !open)}
+                className="cursor-pointer rounded-full focus:outline-none"
+              >
+                {session?.user?.image ? (
+                  <img
+                    src={session.user.image}
+                    alt={session.user.name ?? "User"}
+                    className="h-8 w-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[10px] font-semibold">
+                    {session?.user?.name
+                      ?.charAt(0)
+                      .toUpperCase() ?? "U"}
+                  </div>
+                )}
+              </button>
 
-              {session?.user?.image ? (
-                <img
-                  src={session.user.image}
-                  alt=""
-                  className="h-8 w-8 rounded-full"
-                />
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#d9b08c] text-[10px] font-semibold">
-                  {session?.user?.name
-                    ?.charAt(0)
-                    .toUpperCase() ?? "U"}
+              {profileOpen && (
+                <div className="absolute right-0 top-11 z-50 w-64 rounded-xl border border-[#333] bg-[#1b1b1b] p-4 shadow-2xl">
+
+                  <div className="flex items-center gap-3">
+                    {session?.user?.image ? (
+                      <img
+                        src={session.user.image}
+                        alt={session.user.name ?? "User"}
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#d9b08c] text-sm font-semibold">
+                        {session?.user?.name
+                          ?.charAt(0)
+                          .toUpperCase() ?? "U"}
+                      </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-white">
+                        {session?.user?.name ?? "User"}
+                      </p>
+
+                      <p className="truncate text-xs text-[#999]">
+                        {session?.user?.email ?? ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="my-3 border-t border-[#333]" />
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      signOut({
+                        callbackUrl: "/",
+                      })
+                    }
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-red-400 transition hover:bg-[#252525]"
+                  >
+                    <span>↪</span>
+                    Logout
+                  </button>
+
                 </div>
               )}
-
             </div>
 
           </header>
